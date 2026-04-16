@@ -28,13 +28,14 @@
 #include "../include/KasiskiEngine.h"
 #include "../include/KeyDerivation.h"
 #include "../include/FileCarver.h"
+#include "../include/PCAPParser.h" // INCLUSIONE DEL NUOVO MODULO SIGINT
 
 std::mutex coutMutex;
 std::mutex resultMutex;
 
 int main() {
     std::cout << "=====================================================" << std::endl;
-    std::cout << "   DECYPHER OMNI-DECODER - ESTREMA 2: FILE CARVING   " << std::endl;
+    std::cout << "   DECYPHER OMNI-DECODER - TERMINAL SIGINT EDITION   " << std::endl;
     std::cout << "=====================================================" << std::endl;
 
     std::unordered_map<std::string, std::string> env = EnvParser::parse(".env");
@@ -79,28 +80,43 @@ int main() {
     cipherRegistry.push_back(std::make_unique<AESCipher>(derivedAesKey));
 
     // ==============================================================
-    // GENERATORE DI PAYLOAD BINARIO MILITARE
-    // Usiamo .back() che estrae con sicurezza assoluta l'ultimo
-    // puntatore allocato (che e' sicuramente il nostro AESCipher)
+    // GENERATORE DI PAYLOAD BINARIO MILITARE (Mantenuto per i test)
     // ==============================================================
-    std::string zipSignature = "PK\x03\x04"; // MAGIC NUMBER DEI FILE ZIP
+    std::string zipSignature = "PK\x03\x04"; 
     std::string fakeZipPayload = zipSignature + "---QUESTO E' IL CONTENUTO CRIPTATO DI UN ARCHIVIO SEGRETO---";
     std::cout << "\n[!] TARGET GENERATO CON AES-256 KDF. INCOLLA QUESTO IN ciphertext.txt:\n"
-              << cipherRegistry.back()->encrypt(fakeZipPayload) // ACCESSO MEMORIA SICURO O(1)
+              << cipherRegistry.back()->encrypt(fakeZipPayload) 
               << "\n" << std::endl;
 
     std::cout << "=====================================================" << std::endl;
-    std::cout << "   ACQUISIZIONE DATI DA: ciphertext.txt              " << std::endl;
+    std::cout << "   ACQUISIZIONE DATI TATTICI (FILE TEXT O PCAP)      " << std::endl;
     std::cout << "=====================================================" << std::endl;
 
-    std::ifstream inputFile("ciphertext.txt");
-    if (!inputFile.is_open()) return 1;
+    std::string targetCiphertext = "";
 
-    std::stringstream buffer;
-    buffer << inputFile.rdbuf();
-    std::string targetCiphertext = buffer.str();
-    inputFile.close();
-    targetCiphertext.erase(targetCiphertext.find_last_not_of(" \n\r\t") + 1);
+    // TENTATIVO 1: Ingestion del traffico PCAP crudo
+    std::ifstream pcapTest("capture.pcap");
+    if (pcapTest.good()) {
+        pcapTest.close();
+        targetCiphertext = PCAPParser::extractTCPPayload("capture.pcap");
+    }
+
+    // TENTATIVO 2: Fallback sul ciphertext classico
+    if (targetCiphertext.empty()) {
+        std::ifstream inputFile("ciphertext.txt");
+        if (!inputFile.is_open()) return 1;
+
+        std::stringstream buffer;
+        buffer << inputFile.rdbuf();
+        targetCiphertext = buffer.str();
+        inputFile.close();
+        targetCiphertext.erase(targetCiphertext.find_last_not_of(" \n\r\t") + 1);
+    }
+
+    if (targetCiphertext.empty()) {
+        std::cerr << "[ERRORE CRITICO] Nessun dato fornito. Inserire ciphertext.txt o capture.pcap" << std::endl;
+        return 1;
+    }
 
     std::cout << "[PAYLOAD INTERCETTATO]:\n" << targetCiphertext.substr(0, 80) << "...\n" << std::endl;
 
@@ -121,12 +137,11 @@ int main() {
 
             double score = 0.0;
             
-            // CONTROLLO FORENSE BINARIO: Ha una firma esadecimale valida?
             std::string fileSignature = FileCarver::detectSignature(attempt);
             if (fileSignature != "UNKNOWN") {
-                score = 999.0; // Vittoria Matematica Assoluta per i binari
+                score = 999.0; 
             } else {
-                score = statAnalyzer.scoreText(attempt); // Altrimenti analizza l'inglese
+                score = statAnalyzer.scoreText(attempt); 
             }
             
             if (score > 0.10 && score < 900.0) {
@@ -153,7 +168,6 @@ int main() {
     std::cout << "   RISULTATO DELLA CRITTANALISI FORENSE              " << std::endl;
     std::cout << "=====================================================" << std::endl;
     
-    // GESTIONE DEI FILE BINARI CARVATI
     if (globalMaxScore >= 900.0) {
         std::string sig = FileCarver::detectSignature(globalFinalDecryption);
         std::string ext = ".bin";
@@ -170,7 +184,6 @@ int main() {
         std::cout << "[AZIONE TATTICA]     : Byte estratti fisicamente e salvati come -> " << outputFilename << std::endl;
         std::cout << "[CONFIDENZA IA]      : ASSOLUTA (Firma Esadecimale Verificata)" << std::endl;
     } 
-    // GESTIONE DEL TESTO IN CHIARO CLASSICO
     else if (globalMaxScore >= 0.50) { 
         std::cout << "[ALGORITMO RILEVATO] : " << globalWinningAlgorithm << std::endl;
         std::string segmentedText = statAnalyzer.segmentWords(globalFinalDecryption);
