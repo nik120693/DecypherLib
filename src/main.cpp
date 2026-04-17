@@ -9,6 +9,7 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
+#include <cctype>
 
 #include "../include/EnvParser.h"
 #include "../include/CaesarCipher.h"
@@ -28,10 +29,84 @@
 #include "../include/KasiskiEngine.h"
 #include "../include/KeyDerivation.h"
 #include "../include/FileCarver.h"
-#include "../include/PCAPParser.h" // INCLUSIONE DEL NUOVO MODULO SIGINT
+#include "../include/PCAPParser.h" 
 
 std::mutex coutMutex;
 std::mutex resultMutex;
+
+// ==============================================================================
+// MODULO CPA (CHOSEN-PLAINTEXT ATTACK): PROFILATORE AUTONOMO DELL'ORACOLO
+// ==============================================================================
+void AutonomousOracleProfiler(Cipher* targetCipher) {
+    std::cout << "\n=====================================================" << std::endl;
+    std::cout << "   AVVIO PROFILATORE AUTONOMO (ATTACCO CPA)          " << std::endl;
+    std::cout << "=====================================================" << std::endl;
+    
+    try {
+        // 1. INIEZIONE DELLE SONDE VETTORIALI
+        std::string probeA  = targetCipher->encrypt("A");
+        std::string probeB  = targetCipher->encrypt("B");
+        std::string probeAB = targetCipher->encrypt("AB");
+
+        // 2. ANALISI LINGUISTICA DEL DELIMITATORE
+        // Confrontiamo la crittazione di due lettere con la singola per trovare il separatore alieno
+        char detectedDelimiter = ' ';
+        for (char c : probeAB) {
+            // Cerchiamo un carattere che non sia un numero, non sia uno spazio e non sia un segno meno
+            if (!std::isdigit(c) && c != ' ' && c != '-') {
+                detectedDelimiter = c;
+                break;
+            }
+        }
+
+        // 3. ESTRAZIONE MATEMATICA DEGLI SCALARI FINALI (C2)
+        auto extractLastInteger = [](const std::string& str) -> int {
+            std::stringstream ss(str);
+            std::string token;
+            int lastVal = 0;
+            // Iteriamo consumando tutti i token fino all'ultimo numero valido
+            while (ss >> token) {
+                try {
+                    // Pulizia base da eventuali delimitatori attaccati al numero
+                    std::string cleanToken = "";
+                    for(char c : token) if(std::isdigit(c) || c == '-') cleanToken += c;
+                    if(!cleanToken.empty()) lastVal = std::stoi(cleanToken);
+                } catch(...) {}
+            }
+            return lastVal;
+        };
+
+        int valA = extractLastInteger(probeA);
+        int valB = extractLastInteger(probeB);
+
+        // 4. RISOLUZIONE DELL'EQUAZIONE LINEARE
+        int differential = valB - valA;
+        int sharedSecret = valA - 65; // 'A' in ASCII equivale a 65
+
+        // Normalizzazione modulare difensiva per evitare offset negativi
+        if (sharedSecret < 0) {
+            // Assumiamo il modulo 467 come base di test standard se negativo, 
+            // in uno scenario reale richiederebbe una terza sonda per dedurre il modulo.
+            sharedSecret = (sharedSecret % 467 + 467) % 467; 
+        }
+
+        std::cout << "[+] Sonde iniettate con successo. Analisi differenziale completata." << std::endl;
+        std::cout << "    -> Varianza Derivata (Delta) : " << differential << std::endl;
+        std::cout << "    -> Costante Condivisa (S_x)  : " << sharedSecret << std::endl;
+        std::cout << "    -> Delimitatore Sintattico   : '" << detectedDelimiter << "'" << std::endl;
+        
+        if (differential == 1) {
+            std::cout << "[!] CONCLUSIONE: L'algoritmo usa una traslazione ASCII lineare (ElGamal Additivo)." << std::endl;
+        } else {
+            std::cout << "[!] CONCLUSIONE: L'algoritmo usa mappatura geometrica complessa o Koblitz Encoding." << std::endl;
+        }
+        
+    } catch (...) {
+        std::cerr << "[-] ERRORE: L'Oracolo ha respinto l'infiltrazione. Analisi fallita." << std::endl;
+    }
+    std::cout << "=====================================================\n" << std::endl;
+}
+
 
 int main() {
     std::cout << "=====================================================" << std::endl;
@@ -43,6 +118,7 @@ int main() {
     std::string vigenereKey = "UNKNOWN"; int railFenceRails = 3;
     int affineA = 5, affineB = 8; std::string beaufortKey = "FORTRESS";
     int enigmaP1 = 0, enigmaP2 = 0, enigmaP3 = 0;
+    
     std::string rsaP = "61", rsaQ = "53", rsaE = "17";
     std::string eccP = "467", eccA = "2", eccB = "3", eccGx = "3", eccGy = "6", eccPriv = "15";
     int lweSeed = 42, lweN = 8, lweM = 16, lweQ = 251;
@@ -67,44 +143,43 @@ int main() {
     StatisticalAnalyzer statAnalyzer("ngrams.txt", "lexicon.txt");
 
     std::vector<std::unique_ptr<Cipher>> cipherRegistry;
-    for (int i = 1; i <= 25; ++i) cipherRegistry.push_back(std::make_unique<CaesarCipher>(i));
-    cipherRegistry.push_back(std::make_unique<VigenereCipher>(vigenereKey));
-    cipherRegistry.push_back(std::make_unique<AtbashCipher>());
-    cipherRegistry.push_back(std::make_unique<RailFenceCipher>(railFenceRails));
-    cipherRegistry.push_back(std::make_unique<AffineCipher>(affineA, affineB));
-    cipherRegistry.push_back(std::make_unique<BeaufortCipher>(beaufortKey));
-    cipherRegistry.push_back(std::make_unique<EnigmaCipher>(enigmaP1, enigmaP2, enigmaP3));
-    cipherRegistry.push_back(std::make_unique<RSACipher>(rsaP, rsaQ, rsaE));
-    cipherRegistry.push_back(std::make_unique<ECCipher>(eccP, eccA, eccB, eccGx, eccGy, eccPriv));
-    cipherRegistry.push_back(std::make_unique<LWECipher>(lweSeed, lweN, lweM, lweQ));
-    cipherRegistry.push_back(std::make_unique<AESCipher>(derivedAesKey));
+    for (int i = 1; i <= 25; ++i) cipherRegistry.push_back(std::make_unique<CaesarCipher>(i)); 
+    cipherRegistry.push_back(std::make_unique<VigenereCipher>(vigenereKey));                 
+    cipherRegistry.push_back(std::make_unique<AtbashCipher>());                              
+    cipherRegistry.push_back(std::make_unique<RailFenceCipher>(railFenceRails));             
+    cipherRegistry.push_back(std::make_unique<AffineCipher>(affineA, affineB));              
+    cipherRegistry.push_back(std::make_unique<BeaufortCipher>(beaufortKey));                 
+    cipherRegistry.push_back(std::make_unique<EnigmaCipher>(enigmaP1, enigmaP2, enigmaP3));  
+    cipherRegistry.push_back(std::make_unique<RSACipher>(rsaP, rsaQ, rsaE));                 
+    cipherRegistry.push_back(std::make_unique<ECCipher>(eccP, eccA, eccB, eccGx, eccGy, eccPriv)); // Indice 32
+    cipherRegistry.push_back(std::make_unique<LWECipher>(lweSeed, lweN, lweM, lweQ));        
+    cipherRegistry.push_back(std::make_unique<AESCipher>(derivedAesKey));                    
 
     // ==============================================================
-    // GENERATORE DI PAYLOAD BINARIO MILITARE (Mantenuto per i test)
+    // ESECUZIONE DEL PROFILATORE AUTONOMO (Zero interazione umana)
     // ==============================================================
-    std::string zipSignature = "PK\x03\x04"; 
-    std::string fakeZipPayload = zipSignature + "---QUESTO E' IL CONTENUTO CRIPTATO DI UN ARCHIVIO SEGRETO---";
-    std::cout << "\n[!] TARGET GENERATO CON AES-256 KDF. INCOLLA QUESTO IN ciphertext.txt:\n"
-              << cipherRegistry.back()->encrypt(fakeZipPayload) 
-              << "\n" << std::endl;
+    AutonomousOracleProfiler(cipherRegistry[32].get());
 
-    std::cout << "=====================================================" << std::endl;
+    // ==============================================================
+    // ACQUISIZIONE DATI TATTICI (FILE TEXT O PCAP)
+    // ==============================================================
     std::cout << "   ACQUISIZIONE DATI TATTICI (FILE TEXT O PCAP)      " << std::endl;
     std::cout << "=====================================================" << std::endl;
 
     std::string targetCiphertext = "";
 
-    // TENTATIVO 1: Ingestion del traffico PCAP crudo
     std::ifstream pcapTest("capture.pcap");
     if (pcapTest.good()) {
         pcapTest.close();
         targetCiphertext = PCAPParser::extractTCPPayload("capture.pcap");
     }
 
-    // TENTATIVO 2: Fallback sul ciphertext classico
     if (targetCiphertext.empty()) {
         std::ifstream inputFile("ciphertext.txt");
-        if (!inputFile.is_open()) return 1;
+        if (!inputFile.is_open()) {
+            std::cerr << "[ERRORE] Nessun file capture.pcap o ciphertext.txt trovato." << std::endl;
+            return 1;
+        }
 
         std::stringstream buffer;
         buffer << inputFile.rdbuf();
@@ -114,7 +189,7 @@ int main() {
     }
 
     if (targetCiphertext.empty()) {
-        std::cerr << "[ERRORE CRITICO] Nessun dato fornito. Inserire ciphertext.txt o capture.pcap" << std::endl;
+        std::cerr << "[ERRORE CRITICO] Nessun dato utile fornito." << std::endl;
         return 1;
     }
 
@@ -179,9 +254,9 @@ int main() {
         std::string outputFilename = "recovered_payload" + ext;
         FileCarver::dumpToFile(globalFinalDecryption, outputFilename);
 
-        std::cout << "[ALGORITMO RILEVATO] : " << globalWinningAlgorithm << " (256-Bit Block Cipher)" << std::endl;
+        std::cout << "[ALGORITMO RILEVATO] : " << globalWinningAlgorithm << std::endl;
         std::cout << "[FORMATO BERSAGLIO]  : File Binario [" << sig << "]" << std::endl;
-        std::cout << "[AZIONE TATTICA]     : Byte estratti fisicamente e salvati come -> " << outputFilename << std::endl;
+        std::cout << "[AZIONE TATTICA]     : Byte estratti fisicamente -> " << outputFilename << std::endl;
         std::cout << "[CONFIDENZA IA]      : ASSOLUTA (Firma Esadecimale Verificata)" << std::endl;
     } 
     else if (globalMaxScore >= 0.50) { 
