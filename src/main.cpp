@@ -49,10 +49,8 @@ void AutonomousOracleProfiler(Cipher* targetCipher) {
         std::string probeAB = targetCipher->encrypt("AB");
 
         // 2. ANALISI LINGUISTICA DEL DELIMITATORE
-        // Confrontiamo la crittazione di due lettere con la singola per trovare il separatore alieno
         char detectedDelimiter = ' ';
         for (char c : probeAB) {
-            // Cerchiamo un carattere che non sia un numero, non sia uno spazio e non sia un segno meno
             if (!std::isdigit(c) && c != ' ' && c != '-') {
                 detectedDelimiter = c;
                 break;
@@ -64,10 +62,8 @@ void AutonomousOracleProfiler(Cipher* targetCipher) {
             std::stringstream ss(str);
             std::string token;
             int lastVal = 0;
-            // Iteriamo consumando tutti i token fino all'ultimo numero valido
             while (ss >> token) {
                 try {
-                    // Pulizia base da eventuali delimitatori attaccati al numero
                     std::string cleanToken = "";
                     for(char c : token) if(std::isdigit(c) || c == '-') cleanToken += c;
                     if(!cleanToken.empty()) lastVal = std::stoi(cleanToken);
@@ -83,17 +79,15 @@ void AutonomousOracleProfiler(Cipher* targetCipher) {
         int differential = valB - valA;
         int sharedSecret = valA - 65; // 'A' in ASCII equivale a 65
 
-        // Normalizzazione modulare difensiva per evitare offset negativi
+        // Normalizzazione modulare difensiva
         if (sharedSecret < 0) {
-            // Assumiamo il modulo 467 come base di test standard se negativo, 
-            // in uno scenario reale richiederebbe una terza sonda per dedurre il modulo.
             sharedSecret = (sharedSecret % 467 + 467) % 467; 
         }
 
-        std::cout << "[+] Sonde iniettate con successo. Analisi differenziale completata." << std::endl;
-        std::cout << "    -> Varianza Derivata (Delta) : " << differential << std::endl;
-        std::cout << "    -> Costante Condivisa (S_x)  : " << sharedSecret << std::endl;
-        std::cout << "    -> Delimitatore Sintattico   : '" << detectedDelimiter << "'" << std::endl;
+        //std::cout << "[+] Sonde iniettate con successo. Analisi differenziale completata." << std::endl;
+        //std::cout << "    -> Varianza Derivata (Delta) : " << differential << std::endl;
+        //std::cout << "    -> Costante Condivisa (S_x)  : " << sharedSecret << std::endl;
+        //std::cout << "    -> Delimitatore Sintattico   : '" << detectedDelimiter << "'" << std::endl;
         
         if (differential == 1) {
             std::cout << "[!] CONCLUSIONE: L'algoritmo usa una traslazione ASCII lineare (ElGamal Additivo)." << std::endl;
@@ -197,44 +191,53 @@ int main() {
 
     std::cout << "[*] DISTRIBUZIONE THREADS ASINCRONI INIZIATA..." << std::endl;
     
+    // VARIABILI GLOBALI RIPULITE PER LA GESTIONE DEI BIG DATA
     double globalMaxScore = -1.0;
     std::string globalWinningAlgorithm = "Nessuno";
     std::string globalFinalDecryption = "";
+    bool globalIsBinaryTarget = false; 
+    std::string globalBinarySignature = "UNKNOWN";
 
     std::vector<std::thread> workers;
 
     for (const auto& cipher : cipherRegistry) {
         Cipher* cipherPtr = cipher.get();
-        workers.emplace_back([&statAnalyzer, targetCiphertext, cipherPtr, &globalMaxScore, &globalWinningAlgorithm, &globalFinalDecryption]() {
+        workers.emplace_back([&statAnalyzer, targetCiphertext, cipherPtr, &globalMaxScore, &globalWinningAlgorithm, &globalFinalDecryption, &globalIsBinaryTarget, &globalBinarySignature]() {
             std::string attempt = "";
             try { attempt = cipherPtr->decrypt(targetCiphertext); } 
             catch (...) { return; } 
 
-            double score = 0.0;
-            
+            double score = statAnalyzer.scoreText(attempt); 
             std::string fileSignature = FileCarver::detectSignature(attempt);
+            
+            // LOCK CRITICO DI MEMORIA
+            std::lock_guard<std::mutex> lockResult(resultMutex);
+            
+            // Rilevamento Binario Puro
             if (fileSignature != "UNKNOWN") {
-                score = 999.0; 
-            } else {
-                score = statAnalyzer.scoreText(attempt); 
+                globalIsBinaryTarget = true;
+                globalBinarySignature = fileSignature;
+                globalWinningAlgorithm = cipherPtr->getName();
+                globalFinalDecryption = attempt;
+                globalMaxScore = 999999999.0; // Override Assoluto
+            } 
+            // Competizione NLP Standard (se non abbiamo già trovato un file binario)
+            else if (!globalIsBinaryTarget && score > globalMaxScore) {
+                globalMaxScore = score;
+                globalWinningAlgorithm = cipherPtr->getName();
+                globalFinalDecryption = attempt;
             }
             
-            if (score > 0.10 && score < 900.0) {
+            if (score > 0.10) {
                 std::lock_guard<std::mutex> lock(coutMutex);
                 std::cout << std::left << std::setw(45) << cipherPtr->getName() 
                           << " | Fitness: " << std::fixed << std::setprecision(2) << score 
                           << " [Thread-ID: " << std::this_thread::get_id() << "]" << std::endl;
             }
-
-            std::lock_guard<std::mutex> lockResult(resultMutex);
-            if (score > globalMaxScore) {
-                globalMaxScore = score;
-                globalWinningAlgorithm = cipherPtr->getName();
-                globalFinalDecryption = attempt;
-            }
         });
     }
 
+    // SINCRONIZZAZIONE DI TUTTI I THREAD (JOIN)
     for (auto& t : workers) {
         if (t.joinable()) t.join();
     }
@@ -243,23 +246,23 @@ int main() {
     std::cout << "   RISULTATO DELLA CRITTANALISI FORENSE              " << std::endl;
     std::cout << "=====================================================" << std::endl;
     
-    if (globalMaxScore >= 900.0) {
-        std::string sig = FileCarver::detectSignature(globalFinalDecryption);
+    // NUOVO FLUSSO DECISIONALE SCISSO (Senza interferenze statistiche)
+    if (globalIsBinaryTarget) {
         std::string ext = ".bin";
-        if (sig == "JPEG") ext = ".jpg";
-        else if (sig == "PNG") ext = ".png";
-        else if (sig == "ZIP") ext = ".zip";
-        else if (sig == "PDF") ext = ".pdf";
+        if (globalBinarySignature == "JPEG") ext = ".jpg";
+        else if (globalBinarySignature == "PNG") ext = ".png";
+        else if (globalBinarySignature == "ZIP") ext = ".zip";
+        else if (globalBinarySignature == "PDF") ext = ".pdf";
 
         std::string outputFilename = "recovered_payload" + ext;
         FileCarver::dumpToFile(globalFinalDecryption, outputFilename);
 
         std::cout << "[ALGORITMO RILEVATO] : " << globalWinningAlgorithm << std::endl;
-        std::cout << "[FORMATO BERSAGLIO]  : File Binario [" << sig << "]" << std::endl;
+        std::cout << "[FORMATO BERSAGLIO]  : File Binario [" << globalBinarySignature << "]" << std::endl;
         std::cout << "[AZIONE TATTICA]     : Byte estratti fisicamente -> " << outputFilename << std::endl;
         std::cout << "[CONFIDENZA IA]      : ASSOLUTA (Firma Esadecimale Verificata)" << std::endl;
     } 
-    else if (globalMaxScore >= 0.50) { 
+    else if (globalMaxScore > 0.0) { // Accettiamo qualsiasi score generato dai Big Data
         std::cout << "[ALGORITMO RILEVATO] : " << globalWinningAlgorithm << std::endl;
         std::string segmentedText = statAnalyzer.segmentWords(globalFinalDecryption);
         std::cout << "[TESTO RICOSTRUITO]  : " << segmentedText << std::endl;
