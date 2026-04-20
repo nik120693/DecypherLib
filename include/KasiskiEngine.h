@@ -5,27 +5,18 @@
 #include <vector>
 
 class KasiskiEngine {
-private:
-    // Frequenze statiche dell'alfabeto inglese
-    static const double englishFreqs[26];
-
-    // Pulisce il testo (solo A-Z maiuscole)
-    std::string cleanText(const std::string& text) const;
-
-    // Calcola l'Indice di Coincidenza (IoC) per dedurre la lunghezza della chiave
-    double calculateIoC(const std::string& text) const;
-
-    // Estrae un "coseto" (es. ogni n-esima lettera del testo)
-    std::string getCoset(const std::string& text, int keyLength, int offset) const;
-
-    // Applica il test statistico Chi-Quadro per indovinare la singola lettera della chiave
-    char guessKeyLetter(const std::string& coset) const;
-
 public:
-    KasiskiEngine() = default;
+    /**
+     * @brief Identifica la lunghezza probabile della chiave (periodo) 
+     * utilizzando l'analisi di Kasiski e l'Indice di Coincidenza.
+     */
+    int findKeyLength(const std::string& ciphertext);
 
-    // Tenta di indovinare l'esatta chiave di Vigenere usata per cifrare il testo
-    std::string extractVigenereKey(const std::string& ciphertext) const;
+    /**
+     * @brief Calcola l'Indice di Coincidenza (IC) per una data stringa.
+     * Valore target per l'inglese: ~0.0667.
+     */
+    double calculateIC(const std::string& text);
 };
 
-#endif // KASISKI_ENGINE_H
+#endif

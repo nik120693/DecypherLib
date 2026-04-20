@@ -1,131 +1,107 @@
 #include "../include/StatisticalAnalyzer.h"
-#include <cctype>
-#include <cmath>
-#include <iostream>
 #include <fstream>
 #include <sstream>
+#include <cmath>
 #include <algorithm>
+#include <vector>
 
-StatisticalAnalyzer::StatisticalAnalyzer(const std::string& ngramFilename, const std::string& lexiconFilename) 
-    : loadedSuccessfully(false) {
-    loadNGramsFromFile(ngramFilename);
-    if (!lexiconFilename.empty()) {
-        loadLexiconFromFile(lexiconFilename);
+StatisticalAnalyzer::StatisticalAnalyzer(const std::string& ngramsFile, const std::string& lexiconFile) {
+    std::ifstream nFile(ngramsFile);
+    std::string key; double value;
+    
+    while (nFile >> key >> value) {
+        ngrams[key] = std::log10(value);
     }
-}
-
-void StatisticalAnalyzer::loadNGramsFromFile(const std::string& filename) {
-    std::ifstream file(filename);
-    if (!file.is_open()) return;
-    std::string line;
-    while (std::getline(file, line)) {
-        if (line.empty() || line[0] == '#') continue;
-        std::stringstream ss(line);
-        std::string ngram; double weight;
-        if (ss >> ngram >> weight) nGrams[cleanText(ngram)] = weight;
-    }
-    file.close();
-    loadedSuccessfully = true;
-}
-
-void StatisticalAnalyzer::loadLexiconFromFile(const std::string& filename) {
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        std::cerr << "[WARNING] Impossibile caricare il lessico: " << filename << std::endl;
-        return;
-    }
-    std::string line;
-    while (std::getline(file, line)) {
-        if (line.empty() || line[0] == '#') continue;
-        std::stringstream ss(line);
-        std::string word; double weight;
-        if (ss >> word >> weight) lexicon[cleanText(word)] = weight;
-    }
-    file.close();
-}
-
-bool StatisticalAnalyzer::isLoaded() const { return loadedSuccessfully; }
-
-std::string StatisticalAnalyzer::cleanText(const std::string& text) const {
-    std::string res;
-    for (char c : text) {
-        if (std::isalpha(static_cast<unsigned char>(c))) res += std::toupper(static_cast<unsigned char>(c));
-    }
-    return res;
-}
-
-double StatisticalAnalyzer::calculateIoC(const std::string& text) const {
-    std::string cleaned = cleanText(text);
-    int N = cleaned.length();
-    if (N <= 1) return 0.0;
-    int counts[26] = {0};
-    for (char c : cleaned) counts[c - 'A']++;
-    double sum = 0.0;
-    for (int i = 0; i < 26; ++i) sum += counts[i] * (counts[i] - 1);
-    return sum / (N * (N - 1));
-}
-
-double StatisticalAnalyzer::scoreText(const std::string& text) const {
-    if (!loadedSuccessfully) return 0.0;
-    std::string cleaned = cleanText(text);
-    if (cleaned.length() < 3) return 0.0;
-    double score = 0.0;
-    for (size_t i = 0; i <= cleaned.length() - 3; ++i) {
-        std::string tri = cleaned.substr(i, 3);
-        if (nGrams.find(tri) != nGrams.end()) score += nGrams.at(tri);
-    }
-    if (cleaned.length() >= 4) {
-        for (size_t i = 0; i <= cleaned.length() - 4; ++i) {
-            std::string quad = cleaned.substr(i, 4);
-            if (nGrams.find(quad) != nGrams.end()) score += nGrams.at(quad);
+    
+    if (!lexiconFile.empty()) {
+        std::ifstream lFile(lexiconFile);
+        while (lFile >> key >> value) {
+            lexicon[key] = value;
         }
     }
-    return score / cleaned.length();
 }
 
-// PROGRAMMAZIONE DINAMICA (VITERBI WORD SEGMENTATION)
-std::string StatisticalAnalyzer::segmentWords(const std::string& text) const {
-    if (lexicon.empty() || text.empty()) return text; // Ritorna l'originale se non c'è vocabolario
-    
-    std::string cleaned = cleanText(text);
-    int n = cleaned.length();
-    
-    // dp[i] memorizza il punteggio massimo per segmentare la sottostringa cleaned[0...i-1]
-    std::vector<double> dp(n + 1, -1e9); 
-    // parent[i] memorizza l'indice precedente per ricostruire il percorso
-    std::vector<int> parent(n + 1, -1);
-    dp[0] = 0.0;
+double StatisticalAnalyzer::scoreText(const std::string& text) {
+    if (text.length() < 4) return -10000.0;
+    double score = 0;
+    for (size_t i = 0; i <= text.length() - 4; ++i) {
+        std::string gram = text.substr(i, 4);
+        if (ngrams.count(gram)) {
+            score += ngrams[gram];
+        } else {
+            score += 0.0; 
+        }
+    }
+    return score;
+}
 
+std::string StatisticalAnalyzer::segmentWords(const std::string& text) {
+    if (lexicon.empty()) return text;
+    int n = text.length();
+    
+    std::vector<double> chart(n + 1, -1e18);
+    std::vector<int> backpointer(n + 1, 0);
+    chart[0] = 0;
+    
     for (int i = 1; i <= n; ++i) {
-        // Opzione 1: Fallback di sicurezza. Isola un carattere sconosciuto con una pesante penalità
-        if (dp[i-1] - 15.0 > dp[i]) {
-            dp[i] = dp[i-1] - 15.0;
-            parent[i] = i - 1;
-        }
-
-        // Opzione 2: Cerca nel dizionario tutte le possibili combinazioni che finiscono in i
-        for (int j = 0; j < i; ++j) {
-            std::string word = cleaned.substr(j, i - j);
-            if (lexicon.find(word) != lexicon.end()) {
-                double score = dp[j] + lexicon.at(word);
-                if (score > dp[i]) {
-                    dp[i] = score;
-                    parent[i] = j;
-                }
+        for (int j = std::max(0, i - 20); j < i; ++j) {
+            std::string word = text.substr(j, i - j);
+            
+            // GRAVITÀ ESPONENZIALE NEL SEGMENTATORE:
+            // L'algoritmo di Viterbi ora preferirà UNIRE le lettere in parole lunghe
+            // piuttosto che spezzarle in frammenti, grazie alla potenza cubica.
+            double prob = lexicon.count(word) ? (std::log10(lexicon[word]) + std::pow((double)word.length(), 4.0)) : (-10.0 * (i - j));
+            
+            if (chart[j] + prob > chart[i]) {
+                chart[i] = chart[j] + prob;
+                backpointer[i] = j;
             }
         }
     }
-
-    // Backtracking per ricostruire la frase
-    if (parent[n] == -1) return text;
-
-    std::string result = "";
+    
+    std::vector<std::string> words;
     int curr = n;
     while (curr > 0) {
-        int p = parent[curr];
-        std::string word = cleaned.substr(p, curr - p);
-        result = word + (result.empty() ? "" : " ") + result;
-        curr = p;
+        int prev = backpointer[curr];
+        words.push_back(text.substr(prev, curr - prev));
+        curr = prev;
     }
-    return result;
+    std::reverse(words.begin(), words.end());
+    std::string res = "";
+    for (size_t i = 0; i < words.size(); ++i) res += words[i] + (i == words.size()-1 ? "" : " ");
+    return res;
+}
+
+double StatisticalAnalyzer::calculateMultiAnchorFitness(const std::string& text) {
+    double fitness = scoreText(text);
+    if (lexicon.empty()) return fitness;
+
+    std::string seg = segmentWords(text);
+    std::stringstream ss(seg);
+    std::string w;
+    
+    double exponentialWordScore = 0;
+    int validWordsCount = 0;
+    
+    while (ss >> w) {
+        if (lexicon.count(w)) {
+            double len = (double)w.length();
+            // LA CHIAVE DI VOLTA MATEMATICA:
+            // Le parole lunghe generano un punteggio che il rumore non può raggiungere.
+            exponentialWordScore += std::pow(len, 3.0);
+            
+            // Contiamo quante parole di senso compiuto (>= 3 lettere) esistono
+            if (len >= 3.0) {
+                validWordsCount++;
+            }
+        }
+    }
+    
+    // FILTRO ANTI-FRAMMENTAZIONE:
+    // Se la frase non contiene almeno 3 parole reali, applichiamo una penalità letale.
+    if (validWordsCount < 3) {
+        return fitness - 5000.0;
+    }
+    
+    return fitness + (exponentialWordScore * 10.0);
 }

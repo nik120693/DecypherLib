@@ -1,40 +1,31 @@
 #include "../include/CaesarCipher.h"
 #include <cctype>
 
-CaesarCipher::CaesarCipher(int shiftValue) : shift(shiftValue % 26) {
-    if (this->shift < 0) {
-        this->shift += 26; // Gestisce gli shift negativi
-    }
+CaesarCipher::CaesarCipher(int k) : shift(k % 26) {}
+
+std::string CaesarCipher::getName() const { 
+    return "Caesar Cipher (Shift " + std::to_string(shift) + ")"; 
 }
 
-std::string CaesarCipher::encrypt(const std::string& plaintext) const {
-    std::string result = "";
-    for (char c : plaintext) {
+std::string CaesarCipher::encrypt(const std::string& p) const {
+    std::string res = "";
+    for (char c : p) {
         if (std::isalpha(c)) {
-            char base = std::islower(c) ? 'a' : 'A';
-            // Formula di traslazione per il cifrario di Cesare
-            result += static_cast<char>((c - base + shift) % 26 + base);
-        } else {
-            result += c; // Lascia inalterati spazi e punteggiatura
-        }
+            char b = std::isupper(c) ? 'A' : 'a';
+            res += (char)((c - b + shift) % 26 + b);
+        } else res += c;
     }
-    return result;
+    return res;
 }
 
-std::string CaesarCipher::decrypt(const std::string& ciphertext) const {
-    std::string result = "";
-    for (char c : ciphertext) {
-        if (std::isalpha(c)) {
-            char base = std::islower(c) ? 'a' : 'A';
-            // Formula inversa: aggiungiamo 26 per evitare risultati negativi prima del modulo
-            result += static_cast<char>((c - base - shift + 26) % 26 + base);
-        } else {
-            result += c;
-        }
+std::string CaesarCipher::decrypt(const std::string& c) const {
+    std::string res = "";
+    int inv = 26 - shift;
+    for (char ch : c) {
+        if (std::isalpha(ch)) {
+            char b = std::isupper(ch) ? 'A' : 'a';
+            res += (char)((ch - b + inv) % 26 + b);
+        } else res += ch;
     }
-    return result;
-}
-
-std::string CaesarCipher::getName() const {
-    return "Caesar Cipher";
+    return res;
 }
