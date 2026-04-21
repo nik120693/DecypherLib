@@ -26,7 +26,13 @@ SOURCES = $(SRC_DIR)/EnvParser.cpp \
           $(SRC_DIR)/KasiskiEngine.cpp \
           $(SRC_DIR)/KeyDerivation.cpp \
           $(SRC_DIR)/FileCarver.cpp \
-          $(SRC_DIR)/PCAPParser.cpp
+          $(SRC_DIR)/PCAPParser.cpp \
+          $(SRC_DIR)/CoreUtils.cpp \
+          $(SRC_DIR)/ClassicalHandlers.cpp \
+          $(SRC_DIR)/MechanicalHandlers.cpp \
+          $(SRC_DIR)/ModernHandlers.cpp \
+          $(SRC_DIR)/AsymmetricHandlers.cpp \
+          $(SRC_DIR)/ForensicHandlers.cpp
 
 OBJECTS = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SOURCES))
 

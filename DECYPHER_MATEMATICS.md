@@ -1,101 +1,91 @@
 ---
 
-### 2. Il File `DECYPHER_MATHEMATICS.md` (Il Trattato Architetturale)
+### 2. The `DECYPHER_MATHEMATICS.md` File (The Architectural Treatise)
 
-Crea questo file. È la spiegazione matematica e informatica, portata al livello di verbosità massima richiesto, che lega le equazioni del mondo reale all'implementazione in C++.
+Create this file. It is the mathematical and computational explanation, brought to the maximum required level of verbosity, linking real-world equations to their C++ implementation.
 
 ```markdown
 # THE MATHEMATICS OF DECYPHERLIB: A Deep Dive
 
-Questo documento sviscera l'infrastruttura matematica e le scelte ingegneristiche alla base della suite `DecypherLib`. Ogni algoritmo è il riflesso di un'equazione crittografica o probabilistica, tradotta in C++17 per massimizzare l'efficienza della CPU, parallelizzare il calcolo e prevenire l'overflow aritmetico.
+This document dissects the mathematical infrastructure and engineering decisions underlying the `DecypherLib` suite. Each algorithm is the reflection of a cryptographic or probabilistic equation, translated into C++17 to maximize CPU efficiency, parallelize computation, and prevent arithmetic overflow.
 
 ---
 
-## 1. Il Motore Semantico: Viterbi e Catene di Markov
-Il cuore della nostra crittanalisi non è la semplice decodifica, ma la capacità della macchina di "comprendere" se una stringa decifrata ha senso nel linguaggio umano. Questo problema è stato risolto modellando la lingua inglese come una Catena di Markov Nascosta (HMM) risolta tramite l'**Algoritmo di Viterbi**.
+## 1. The Semantic Engine: Viterbi and Markov Chains
+The heart of our cryptanalysis is not simple decoding, but the machine's ability to "understand" if a deciphered string makes sense in human language. This problem was solved by modeling the English language as a Hidden Markov Model (HMM) solved via the **Viterbi Algorithm**.
 
-
-
-### La Matematica
-Sia $W = w_1, w_2, ..., w_n$ una sequenza di parole candidate. La probabilità totale che questa sequenza sia una frase valida è il prodotto delle probabilità marginali delle singole parole estratte dal lessico:
+### The Mathematics
+Let $W = w_1, w_2, ..., w_n$ be a sequence of candidate words. The total probability that this sequence is a valid sentence is the product of the marginal probabilities of the individual words extracted from the lexicon:
 $$P(W) = \prod_{i=1}^{n} P(w_i)$$
 
-Tuttavia, calcolare il prodotto di migliaia di probabilità infinitesime (es. $10^{-6}$) in una CPU causa invariabilmente un **Arithmetic Underflow** (il numero diventa così piccolo che il tipo `double` collassa a zero). Per questo, applichiamo il logaritmo, trasformando la produttoria in una sommatoria:
+However, calculating the product of thousands of infinitesimal probabilities (e.g., $10^{-6}$) in a CPU invariably causes an **Arithmetic Underflow** (the number becomes so small that the `double` type collapses to zero). Because of this, we apply the logarithm, transforming the product into a sum:
 $$\log P(W) = \sum_{i=1}^{n} \log P(w_i)$$
 
-### L'Implementazione Informatica (C++)
-Nel file `StatisticalAnalyzer.cpp`, la funzione `segmentWords()` utilizza la **Programmazione Dinamica** (Dynamic Programming) per implementare questa formula in tempo $O(N \cdot M)$. 
-Inizializziamo un array dinamico `std::vector<double> chart(n + 1, -1e18)` dove `-1e18` rappresenta l'infinito negativo (probabilità logaritmica zero). Il vettore iterativo calcola il massimo della sottomatrice per ogni nodo:
+### The Computational Implementation (C++)
+In the `StatisticalAnalyzer.cpp` file, the `segmentWords()` function uses **Dynamic Programming** to implement this formula in $O(N \cdot M)$ time. 
+We initialize a dynamic array `std::vector<double> chart(n + 1, -1e18)` where `-1e18` represents negative infinity (logarithmic probability zero). The iterative vector calculates the maximum of the submatrix for each node:
 `chart[i] = std::max(chart[j] + prob_word)`
-Un array separato, `backpointer`, memorizza il cammino ottimo per ricostruire la stringa una volta raggiunta la fine del testo (Backtracking).
+A separate array, `backpointer`, stores the optimal path to reconstruct the string once the end of the text is reached (Backtracking).
 
 ---
 
-## 2. La Singolarità: Gravità Semantica Esponenziale
-Il problema dell'algoritmo di Viterbi standard è l'**Overfitting Crittografico**: una chiave errata può generare frammenti casuali di 1 o 2 lettere che, sommati, producono un punteggio superiore a una frase reale ma meno "probabile" secondo il dizionario.
+## 2. The Singularity: Exponential Semantic Gravity
+The problem with the standard Viterbi algorithm is **Cryptographic Overfitting**: a wrong key can generate random fragments of 1 or 2 letters which, added together, produce a higher score than a real sentence but are less "probable" according to the dictionary.
 
-### La Matematica
-Abbiamo alterato lo spazio delle probabilità introducendo un attrattore non lineare: la **Gravità Semantica Esponenziale**. La funzione di Fitness globale $F$ di una decodifica è definita come la somma dell'Entropia N-Grammatica $E$ (calcolata con i quadgrammi) più la sommatoria cubica delle lunghezze $L_i$ delle parole valide estratte:
+### The Mathematics
+We altered the probability space by introducing a non-linear attractor: **Exponential Semantic Gravity**. The global Fitness function $F$ of a decoding is defined as the sum of the N-Gram Entropy $E$ (calculated with quadgrams) plus the cubic sum of the lengths $L_i$ of the valid words extracted:
 $$F = E + \alpha \sum_{i=1}^{k} (L_i)^3$$
-Dove $\alpha$ è una costante di bilanciamento scalare. L'elevamento al cubo altera la topologia dei punteggi: 10 parole da 1 lettera valgono $10 \times 1^3 = 10$, mentre 1 parola da 10 lettere vale $1 \times 10^3 = 1000$.
+Where $\alpha$ is a scalar balancing constant. Cubing alters the scoring topology: 10 words of 1 letter are worth $10 \times 1^3 = 10$, while 1 word of 10 letters is worth $1 \times 10^3 = 1000$.
 
-### L'Implementazione Informatica
-In C++, questa logica è iniettata in `calculateMultiAnchorFitness()`. Usiamo `std::pow(len, 3.0)` su variabili `double`. Questo annichilisce letteralmente il rumore statistico. Qualsiasi thread di Forza Bruta che partorisca una parola reale di senso compiuto vedrà la sua variabile di fitness esplodere verso l'alto, imponendosi sul mutex `resultMutex` durante la fase di aggiornamento della classifica globale.
+### The Computational Implementation
+In C++, this logic is injected into `calculateMultiAnchorFitness()`. We use `std::pow(len, 3.0)` on `double` variables. This literally annihilates statistical noise. Any Brute Force thread that births a real, meaningful word will see its fitness variable skyrocket, imposing itself on the `resultMutex` during the global leaderboard update phase.
 
 ---
 
-## 3. Analisi Spettrale: Indice di Coincidenza (IC) e $\chi^2$
-Per distruggere il cifrario di Vigenère (che maschera le frequenze delle singole lettere usando alfabeti multipli dipendenti dalla chiave), utilizziamo le equazioni di William F. Friedman del 1922.
+## 3. Spectral Analysis: Index of Coincidence (IC) and $\chi^2$
+To destroy the Vigenère cipher (which masks the frequencies of individual letters using multiple key-dependent alphabets), we use William F. Friedman's 1922 equations.
 
-
-
-### Indice di Coincidenza (IC)
-L'IC misura la probabilità che due lettere scelte a caso da un testo siano identiche. In un testo puramente casuale (o cifrato polialfabetico perfetto), $IC \approx 0.038$. Nell'inglese naturale, a causa dell'alta frequenza della "E" e della "T", $IC \approx 0.066$.
-La formula utilizzata dal nostro `KasiskiEngine` è:
+### Index of Coincidence (IC)
+The IC measures the probability that two letters randomly chosen from a text are identical. In a purely random text (or perfect polyalphabetic cipher), $IC \approx 0.038$. In natural English, due to the high frequency of "E" and "T", $IC \approx 0.066$.
+The formula used by our `KasiskiEngine` is:
 $$IC = \frac{\sum_{i=A}^{Z} f_i(f_i - 1)}{N(N-1)}$$
-Dove $f_i$ è la frequenza assoluta dell'i-esima lettera e $N$ è la lunghezza totale della colonna analizzata. Il programma suddivide il testo in $L$ colonne e calcola la media degli IC. Quando la media supera la soglia di $0.058$, il sistema deduce di aver "incolonnato" correttamente il testo sotto la stessa lettera della chiave, rivelando così la lunghezza del periodo $L$.
+Where $f_i$ is the absolute frequency of the i-th letter and $N$ is the total length of the analyzed column. The program divides the text into $L$ columns and calculates the average IC. When the average exceeds the $0.058$ threshold, the system deduces it has correctly "aligned" the text under the same letter of the key, thus revealing the length of the period $L$.
 
-### Test Statistico del Chi-Quadrato ($\chi^2$)
-Una volta isolata la colonna, dobbiamo trovare lo *shift* di Cesare applicato. Usiamo il test di bontà dell'adattamento di Pearson ($\chi^2$) per comparare le frequenze osservate $O_i$ con le frequenze attese $E_i$ della lingua inglese:
+### Chi-Square Statistical Test ($\chi^2$)
+Once the column is isolated, we must find the applied Caesar *shift*. We use Pearson's goodness-of-fit test ($\chi^2$) to compare the observed frequencies $O_i$ with the expected frequencies $E_i$ of the English language:
 $$\chi^2 = \sum_{i=A}^{Z} \frac{(O_i - E_i)^2}{E_i}$$
-In `main.cpp`, per ogni colonna e per ogni possibile shift (da 0 a 25), calcoliamo il valore di $\chi^2$. Lo shift che minimizza la funzione (ovvero che rende la distribuzione derivata il più simile possibile a `ENG_FREQ`) viene selezionato come lettera della chiave.
+In `main.cpp`, for each column and for each possible shift (from 0 to 25), we calculate the $\chi^2$ value. The shift that minimizes the function (meaning it makes the derived distribution as similar as possible to `ENG_FREQ`) is selected as the key letter.
 
 ---
 
-## 4. Matematica delle Curve Ellittiche (ECC ElGamal)
-La crittanalisi non si ferma al mondo classico. L'infrastruttura supporta la matematica dell'Elliptic Curve Cryptography sui campi finiti $\mathbb{F}_p$.
+## 4. Elliptic Curve Mathematics (ECC ElGamal)
+Cryptanalysis doesn't stop at the classical world. The infrastructure supports Elliptic Curve Cryptography mathematics over finite fields $\mathbb{F}_p$.
 
-
-
-### La Matematica
-Una curva ellittica è definita dall'equazione di Weierstrass ristretta:
+### The Mathematics
+An elliptic curve is defined by the restricted Weierstrass equation:
 $$y^2 \equiv x^3 + ax + b \pmod p$$
-L'algoritmo di cifratura ElGamal mappato su curva richiede un generatore $G$. La chiave pubblica è $Q = k_{priv}G$. Per cifrare un messaggio $M$ (mappato come punto $P_m$), il mittente sceglie un k casuale e genera un crittogramma composto da due punti:
+The ElGamal encryption algorithm mapped onto a curve requires a generator $G$. The public key is $Q = k_{priv}G$. To encrypt a message $M$ (mapped as point $P_m$), the sender chooses a random $k$ and generates a cryptogram composed of two points:
 $$C_1 = kG$$
 $$C_2 = P_m + kQ$$
-Per decifrare, il ricevente (nel nostro modulo `ECCipher.cpp`) moltiplica la sua chiave privata per $C_1$ ed esegue una sottrazione di punti sulla curva:
+To decrypt, the receiver (in our `ECCipher.cpp` module) multiplies their private key by $C_1$ and performs point subtraction on the curve:
 $$P_m = C_2 - k_{priv}C_1$$
 
-### L'Implementazione Informatica
-Trattare la matematica dei punti (Addizione e Raddoppio su curva) in C++ richiede un'attenta manipolazione dei tipi. Nel nostro `ECCipher.cpp`, per evitare overflow a 64-bit durante la risoluzione del modulo inverso moltiplicativo (algoritmo di Euclide esteso), abbiamo isolato l'algebra lineare all'interno di stringhe parzate da `std::stoll()` o appoggiandoci a classi `BigInt` custom. I blocchi crittografici sono gestiti usando `std::stringstream` per splittare i tensori $(X, Y, M)$.
+### The Computational Implementation
+Handling point mathematics (Addition and Doubling on a curve) in C++ requires careful type manipulation. In our `ECCipher.cpp`, to avoid 64-bit overflows during the resolution of the modular multiplicative inverse (extended Euclidean algorithm), we isolated the linear algebra within strings parsed by `std::stoll()` or relied on custom `BigInt` classes. Cryptographic blocks are managed using `std::stringstream` to split the $(X, Y, M)$ tensors.
 
 ---
 
 ## 5. Post-Quantum: Learning With Errors (LWE)
-L'oracolo unificato integra un prototipo LWE, il fondamento dei moderni schemi NIST per resistere all'attacco di Grover su computer quantistici.
+The unified oracle integrates an LWE prototype, the foundation of modern NIST schemes to resist Grover's attack on quantum computers.
 
-
-
-### La Matematica
-Invece di basarsi sulla fattorizzazione di numeri primi (RSA) o sul logaritmo discreto (ECC), LWE si basa sulla difficoltà di risolvere sistemi di equazioni lineari perturbati da un "rumore" gaussiano.
-La chiave pubblica è una matrice di equazioni $(A, b)$ tali che:
+### The Mathematics
+Instead of relying on prime number factorization (RSA) or the discrete logarithm (ECC), LWE relies on the difficulty of solving systems of linear equations perturbed by Gaussian "noise".
+The public key is a matrix of equations $(A, b)$ such that:
 $$b \equiv As + e \pmod q$$
-Dove $s$ è il vettore segreto (chiave privata) ed $e$ è un vettore di piccolo errore casuale. Senza $e$, il sistema sarebbe risolvibile in tempo polinomiale tramite Eliminazione di Gauss. L'aggiunta di $e$ trasforma il problema in un reticolo N-dimensionale classificato come NP-Difficile (NP-Hard).
+Where $s$ is the secret vector (private key) and $e$ is a small random error vector. Without $e$, the system would be solvable in polynomial time via Gaussian Elimination. The addition of $e$ transforms the problem into an N-dimensional lattice classified as NP-Hard.
 
-### L'Implementazione Informatica
-In `LWECipher.cpp`, lavoriamo non più con stringhe di testo o grandi interi isolati, ma con operazioni matriciali. Utilizziamo `std::vector<std::vector<int>>` per rappresentare i reticoli matematici. L'estrazione dell'errore (decapsulation) comporta l'arrotondamento del bit estratto basato sulla sottomissione algebrica: se il residuo modulo $q$ è più vicino a $q/2$, il bit è 1, altrimenti è 0. Questo meccanismo di tolleranza all'errore è stato implementato con logiche di *bit-shifting* per garantire velocità di esecuzione a livello L1 cache.
+### The Computational Implementation
+In `LWECipher.cpp`, we no longer work with text strings or isolated large integers, but with matrix operations. We use `std::vector<std::vector<int>>` to represent the mathematical lattices. Error extraction (decapsulation) involves rounding the extracted bit based on algebraic submission: if the residue modulo $q$ is closer to $q/2$, the bit is 1, otherwise it is 0. This error tolerance mechanism was implemented with *bit-shifting* logic to ensure execution speed at the L1 cache level.
 
 ---
-
-
-THE INVASION WILL COMMENCE AT DAWN PROCEED WITH OPERATION OVERLORD AND MAINTAIN STRICT RADIO SILENCE UNTIL FURTHER NOTICE
+```

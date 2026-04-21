@@ -1,24 +1,30 @@
 # DecypherLib: Omni-Decoder & Cryptanalysis Suite
 
-DecypherLib è una suite software modulare ad altissime prestazioni scritta in C++17, progettata per l'analisi forense, la crittanalisi statistica e l'ingegneria inversa dei cifrari. Sviluppato per operare sia su cifrari storici che su moderne primitive crittografiche, il sistema integra algoritmi di Machine Learning probabilistico (Viterbi), analisi spettrale (Indice di Coincidenza) e calcolo asimmetrico post-quantistico.
+DecypherLib is a high-performance modular software suite written in C++17, designed for forensics analysis, statistical cryptanalysis, and cipher reverse engineering. Developed to operate on both historical ciphers and modern cryptographic primitives, the system integrates probabilistic Machine Learning algorithms (Viterbi), spectral analysis (Index of Coincidence), and post-quantum asymmetric computation.
 
-## 🚀 Caratteristiche Architetturali
+## 🚀 Architectural Features
 
-Il sistema è orchestrato da una Command Line Interface (CLI) interattiva che espone cinque macro-moduli operativi:
+The system is orchestrated by an interactive Command Line Interface (CLI) that exposes five operational macro-modules:
 
-1. **Crittanalisi Classica Estesa**: Attacco simultaneo multithread tramite Forza Bruta e Dictionary Attack su Caesar, Atbash, Vigenère, Affine, Beaufort e Rail Fence.
-2. **Crittanalisi Meccanica (WWII)**: Emulazione di rotori Enigma e implementazione della Bomba di Turing per attacchi Known-Plaintext (Crib).
-3. **Sicurezza Moderna**: Decrittazione simmetrica AES-256 (con Key Derivation PBKDF2 simulata) ed estrazione di impronte hash SHA-256.
-4. **Forensica Asimmetrica & Post-Quantum**: Manipolazione di grandi interi per RSA, decrittazione su Curva Ellittica (ECC ElGamal) ed emulazione crittografica LWE (Learning With Errors) basata su reticoli.
-5. **Data Extraction**: Parsing a basso livello di file PCAP (Network Forensics) e File Carving binario tramite Magic Numbers.
+1. **Extended Classical Cryptanalysis**: Simultaneous multithreaded attacks via Brute Force and Dictionary Attacks on Caesar, Atbash, Vigenère, Affine, Beaufort, and Rail Fence.
+2. **Mechanical Cryptanalysis (WWII)**: Emulation of Enigma rotors and implementation of the Turing Bombe for Known-Plaintext Attacks (Cribs).
+3. **Modern Security**: Symmetric AES-256 decryption (with simulated PBKDF2 Key Derivation) and SHA-256 hash fingerprint extraction.
+4. **Asymmetric & Post-Quantum Forensics**: Large integer manipulation for RSA, Elliptic Curve decryption (ECC ElGamal), and lattice-based LWE (Learning With Errors) cryptographic emulation.
+5. **Data Extraction**: Low-level parsing of PCAP files (Network Forensics) and binary File Carving via Magic Numbers.
 
-## 🛠️ Compilazione ed Esecuzione
+## 🛠️ Compilation and Execution
 
-Il progetto utilizza un Makefile ottimizzato per sistemi UNIX-like (Linux/macOS) con flag di massima ottimizzazione (`-O3`) e supporto al multithreading POSIX (`-pthread`).
+The project uses an optimized Makefile for UNIX-like systems (Linux/macOS) with maximum optimization flags (`-O3`) and POSIX multithreading support (`-pthread`).
 
 ```bash
-# Compilazione totale e build dei test
+# Full compilation and test build
 make clean && make all && make test
 
-# Esecuzione della suite interattiva
+# Execute the interactive suite
 make run
+```
+
+## 📖 Documentation
+
+For a step-by-step explanation of every single module, its parameters, and the algorithms, consult our [Detailed Usage Guide (USAGE_GUIDE.md)](USAGE_GUIDE.md).
+For the mathematical foundations of the integrated engines, visit [DECYPHER_MATEMATICS.md](DECYPHER_MATEMATICS.md).

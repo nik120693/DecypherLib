@@ -73,10 +73,21 @@ std::string StatisticalAnalyzer::segmentWords(const std::string& text) {
 }
 
 double StatisticalAnalyzer::calculateMultiAnchorFitness(const std::string& text) {
-    double fitness = scoreText(text);
+    int spaceCount = std::count(text.begin(), text.end(), ' ');
+    
+    std::string cleanText = text;
+    cleanText.erase(std::remove_if(cleanText.begin(), cleanText.end(), ::isspace), cleanText.end());
+    
+    double fitness = scoreText(cleanText);
     if (lexicon.empty()) return fitness;
 
-    std::string seg = segmentWords(text);
+    std::string seg;
+    if (spaceCount > text.length() / 20) {
+        seg = text;
+    } else {
+        seg = segmentWords(cleanText);
+    }
+
     std::stringstream ss(seg);
     std::string w;
     
@@ -84,21 +95,18 @@ double StatisticalAnalyzer::calculateMultiAnchorFitness(const std::string& text)
     int validWordsCount = 0;
     
     while (ss >> w) {
-        if (lexicon.count(w)) {
-            double len = (double)w.length();
-            // LA CHIAVE DI VOLTA MATEMATICA:
-            // Le parole lunghe generano un punteggio che il rumore non può raggiungere.
+        std::string cleanW = "";
+        for(char c : w) if(std::isalpha(c)) cleanW += std::toupper(c);
+        
+        if (!cleanW.empty() && lexicon.count(cleanW)) {
+            double len = (double)cleanW.length();
             exponentialWordScore += std::pow(len, 3.0);
-            
-            // Contiamo quante parole di senso compiuto (>= 3 lettere) esistono
             if (len >= 3.0) {
                 validWordsCount++;
             }
         }
     }
     
-    // FILTRO ANTI-FRAMMENTAZIONE:
-    // Se la frase non contiene almeno 3 parole reali, applichiamo una penalità letale.
     if (validWordsCount < 3) {
         return fitness - 5000.0;
     }

@@ -26,6 +26,12 @@ set(SOURCE_FILES
     src/KasiskiEngine.cpp
     src/KeyDerivation.cpp
     src/FileCarver.cpp
+    src/CoreUtils.cpp
+    src/ClassicalHandlers.cpp
+    src/MechanicalHandlers.cpp
+    src/ModernHandlers.cpp
+    src/AsymmetricHandlers.cpp
+    src/ForensicHandlers.cpp
 )
 add_executable(decypher_app src/main.cpp ${SOURCE_FILES})
 add_executable(decypher_test tests/test_main.cpp ${SOURCE_FILES})
