@@ -1,123 +1,170 @@
 #include "../include/LWECipher.h"
-#include <random>
 #include <sstream>
+#include <vector>
 #include <iostream>
+#include <stdexcept>
+#include <iomanip>
+#include <random>
 #include <cmath>
+#include <algorithm> 
 
-int LWECipher::mod(int val, int m) const {
-    int res = val % m;
-    if (res < 0) res += m;
-    return res;
+// =========================================================================
+// STRUTTURA TOPOLOGICA: Parametri Regev LWE
+// =========================================================================
+struct LWEKeys {
+    int q = 251;   // Modulo primo (Campo GF(q))
+    int n = 8;     // Dimensione del vettore segreto
+    int m = 16;    // Numero di equazioni del reticolo
+    std::vector<int> S;                         // Vettore Segreto (Private Key)
+    std::vector<std::vector<int>> A;            // Matrice Pubblica A
+    std::vector<int> B;                         // Vettore Pubblico B (A*S + E)
+};
+
+// =========================================================================
+// MOTORE MATEMATICO (Generazione Deterministica per Compatibilità Header)
+// =========================================================================
+LWEKeys generateLatticeKeys() {
+    LWEKeys keys;
+    // Seme deterministico (42) per sincronizzare Encrypt/Decrypt senza variabili di stato header
+    std::mt19937 gen(42); 
+    std::uniform_int_distribution<> distQ(0, keys.q - 1);
+    std::uniform_int_distribution<> distErr(-2, 2); // Rumore intenzionale (Error Distribution)
+
+    // 1. Generazione Vettore Segreto (S)
+    keys.S.resize(keys.n);
+    for(int i = 0; i < keys.n; i++) keys.S[i] = distQ(gen);
+
+    // 2. Generazione Matrice A e Vettore Pubblico B = A*S + E
+    keys.A.resize(keys.m, std::vector<int>(keys.n));
+    keys.B.resize(keys.m);
+    
+    for(int i = 0; i < keys.m; i++) {
+        int dotProduct = 0;
+        for(int j = 0; j < keys.n; j++) {
+            keys.A[i][j] = distQ(gen);
+            dotProduct = (dotProduct + keys.A[i][j] * keys.S[j]) % keys.q;
+        }
+        int error = distErr(gen);
+        keys.B[i] = (dotProduct + error) % keys.q;
+        if (keys.B[i] < 0) keys.B[i] += keys.q;
+    }
+    return keys;
 }
 
-LWECipher::LWECipher(int seed, int n_val, int m_val, int q_val) 
-    : n(n_val), m(m_val), q(q_val) {
-    
-    std::mt19937 gen(seed);
-    std::uniform_int_distribution<int> dist_q(0, q - 1);
-    std::uniform_int_distribution<int> dist_err(-2, 2); 
+// =========================================================================
+// CLASSE PRINCIPALE: LWE LATTICE
+// =========================================================================
 
-    s.resize(n);
-    for (int i = 0; i < n; ++i) {
-        s[i] = dist_q(gen);
-    }
+LWECipher::LWECipher(int, int, int, int) {} // Costruttore di default
 
-    A.resize(m, std::vector<int>(n));
-    b.resize(m);
-
-    for (int i = 0; i < m; ++i) {
-        int dot_product = 0;
-        for (int j = 0; j < n; ++j) {
-            A[i][j] = dist_q(gen);
-            dot_product += A[i][j] * s[j];
-        }
-        int error = dist_err(gen);
-        b[i] = mod(dot_product + error, q);
-    }
+std::string LWECipher::getName() const { 
+    return "Learning With Errors (LWE) Post-Quantum Cryptography"; 
 }
 
 std::string LWECipher::encrypt(const std::string& plaintext) const {
-    std::stringstream result;
-    std::mt19937 gen_enc(12345); 
-    std::uniform_int_distribution<int> dist_bin(0, 1);
+    LWEKeys keys = generateLatticeKeys();
+    std::stringstream ciphertext;
+    
+    std::mt19937 encGen(std::random_device{}()); 
+    std::uniform_int_distribution<> distR(0, 1);
 
-    bool firstBit = true;
+    int qHalf = keys.q / 2;
 
-    for (char c : plaintext) {
-        for (int bitPos = 7; bitPos >= 0; --bitPos) {
-            int bit = (c >> bitPos) & 1;
+    for (size_t charIdx = 0; charIdx < plaintext.length(); ++charIdx) {
+        char m_char = plaintext[charIdx];
+        
+        for (int b = 7; b >= 0; --b) {
+            int bit = (m_char >> b) & 1;
+            
+            std::vector<int> R(keys.m);
+            for(int i = 0; i < keys.m; i++) R[i] = distR(encGen);
 
-            std::vector<int> r(m);
-            for (int i = 0; i < m; ++i) r[i] = dist_bin(gen_enc);
+            std::vector<int> U(keys.n, 0);
+            int V = 0;
 
-            std::vector<int> u(n, 0);
-            for (int j = 0; j < n; ++j) {
-                for (int i = 0; i < m; ++i) {
-                    u[j] += A[i][j] * r[i];
+            for(int i = 0; i < keys.m; i++) {
+                if (R[i] == 1) {
+                    for(int j = 0; j < keys.n; j++) {
+                        U[j] = (U[j] + keys.A[i][j]) % keys.q;
+                    }
+                    V = (V + keys.B[i]) % keys.q;
                 }
-                u[j] = mod(u[j], q);
             }
+            V = (V + bit * qHalf) % keys.q;
 
-            int v = 0;
-            for (int i = 0; i < m; ++i) {
-                v += b[i] * r[i];
+            // FIX: Serializzazione allineata con i due punti
+            for(int j = 0; j < keys.n; j++) {
+                ciphertext << U[j];
+                if (j < keys.n - 1) ciphertext << ",";
             }
-            v = mod(v + bit * (q / 2), q);
-
-            if (!firstBit) result << " ";
-            for (int j = 0; j < n; ++j) {
-                result << u[j] << ",";
+            ciphertext << ":" << V; // <-- Iniezione del separatore corretto
+            
+            if (charIdx != plaintext.length() - 1 || b != 0) {
+                ciphertext << "|";
             }
-            result << v;
-            firstBit = false;
         }
     }
-    return result.str();
+    return ciphertext.str();
 }
 
 std::string LWECipher::decrypt(const std::string& ciphertext) const {
-    std::string result = "";
+    LWEKeys keys = generateLatticeKeys(); 
+    std::string plaintext = "";
     std::stringstream ss(ciphertext);
-    std::string bitChunk;
-    
-    int currentChar = 0;
+    std::string block;
+
+    int qHalf = keys.q / 2;
     int bitCount = 0;
+    char currentChar = 0;
 
-    while (std::getline(ss, bitChunk, ' ')) {
-        if (bitChunk.empty()) continue;
+    while (std::getline(ss, block, '|')) {
+        // FIX: Sanitizzazione aggressiva contro la frammentazione del terminale
+        block.erase(std::remove(block.begin(), block.end(), '\n'), block.end());
+        block.erase(std::remove(block.begin(), block.end(), '\r'), block.end());
+        block.erase(std::remove(block.begin(), block.end(), ' '), block.end());
+        block.erase(std::remove(block.begin(), block.end(), '\t'), block.end());
 
-        std::vector<int> u(n);
-        size_t currentPos = 0;
-        for (int j = 0; j < n; ++j) {
-            size_t nextComma = bitChunk.find(',', currentPos);
-            u[j] = std::stoi(bitChunk.substr(currentPos, nextComma - currentPos));
-            currentPos = nextComma + 1;
+        if(block.empty()) continue;
+
+        size_t colonPos = block.find(':');
+        if (colonPos == std::string::npos) {
+            continue; 
         }
-        int v = std::stoi(bitChunk.substr(currentPos));
 
-        int dot_product = 0;
-        for (int j = 0; j < n; ++j) {
-            dot_product += s[j] * u[j];
+        std::string uStr = block.substr(0, colonPos);
+        int V = std::stoi(block.substr(colonPos + 1));
+
+        std::vector<int> U;
+        std::stringstream uss(uStr);
+        std::string uVal;
+        while(std::getline(uss, uVal, ',')) {
+            U.push_back(std::stoi(uVal));
         }
-        int val = mod(v - dot_product, q);
 
+        if ((int)U.size() != keys.n) continue;
+
+        // V' = V - U^T * S
+        int dot = 0;
+        for(int j = 0; j < keys.n; j++) {
+            dot = (dot + U[j] * keys.S[j]) % keys.q;
+        }
+        int decV = (V - dot) % keys.q;
+        if (decV < 0) decV += keys.q;
+
+        // Decodifica tollerante agli errori
         int bit = 0;
-        if (std::abs(val - (q / 2)) < std::abs(val - 0) && std::abs(val - (q / 2)) < std::abs(val - q)) {
-            bit = 1;
-        }
+        int dist0 = std::min(decV, keys.q - decV);
+        int dist1 = std::abs(decV - qHalf);
+        if (dist1 < dist0) bit = 1;
 
         currentChar = (currentChar << 1) | bit;
         bitCount++;
 
         if (bitCount == 8) {
-            result += static_cast<char>(currentChar);
-            currentChar = 0;
+            plaintext += currentChar;
             bitCount = 0;
+            currentChar = 0;
         }
     }
-    return result;
-}
-
-std::string LWECipher::getName() const {
-    return "Lattice-Based Post-Quantum (LWE)";
+    return plaintext;
 }

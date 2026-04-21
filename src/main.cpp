@@ -14,6 +14,7 @@
 #include <cctype>
 #include <numeric>
 #include <unordered_set>
+#include <cstring>
 
 // ==========================================
 // INCLUSIONE SINGOLI MODULI (GRANULARITÀ TOTALE)
@@ -465,18 +466,178 @@ int main() {
                 printTopResults(sa);
                 break;
             }
-            case 7: { 
-                std::cout << "\n[EXEC] Attivazione Emulatore Enigma..." << std::endl;
-                EnigmaCipher enigma(1, 2, 3);
-                (void)enigma;
-                std::cout << "[STATO] Emulatore agganciato. Necessaria parametrizzazione anelli e rotori nell'header." << std::endl;
+            case 7: { // MODULO ENIGMA M3 (EMULATORE KRIEGSMARINE)
+                std::cout << "\n[EXEC] Inizializzazione Emulatore Enigma M3..." << std::endl;
+                
+                std::ifstream f("ciphertext.txt");
+                if (!f) { std::cout << "[ERR] File non trovato.\n"; break; }
+                std::string cleanTarget = ""; char ch;
+                while (f.get(ch)) { if (std::isalpha(ch)) cleanTarget += std::toupper(ch); }
+
+                // KERNEL ENIGMA M3 LOCALE
+                struct LocalEnigma {
+                    int rot[3], pos[3], ring[3], pb[26];
+                    const std::string W[5] = {"EKMFLGDQVZNTOWYHXUSPAIBRCJ", "AJDKSIRUXBLHWTMCQGZNPYFVOE", 
+                                              "BDFHJLCPRTXVZNYEIWGAKMUSQO", "ESOVPZJAYQUIRHXLNFTGKDCMWB", 
+                                              "VZBRGITYUPSDNHLXAWMJQOFECK"};
+                    const int notches[5] = {16, 4, 21, 9, 25}; // Q, E, V, J, Z
+                    const std::string REF = "YRUHQSLDPXNGOKMIEBFZCWVJAT"; // Riflettore B
+
+                    LocalEnigma(int r1, int r2, int r3, std::string p, std::string r) {
+                        rot[0] = r1-1; rot[1] = r2-1; rot[2] = r3-1;
+                        pos[0] = p[0]-'A'; pos[1] = p[1]-'A'; pos[2] = p[2]-'A';
+                        ring[0] = r[0]-'A'; ring[1] = r[1]-'A'; ring[2] = r[2]-'A';
+                        for(int i=0; i<26; i++) pb[i] = i;
+                    }
+
+                    char process(char c) {
+                        int v = c - 'A'; v = pb[v];
+                        bool stepM = (pos[2] == notches[rot[2]]);
+                        bool stepL = (pos[1] == notches[rot[1]]);
+                        if(stepL) stepM = true; // Anomalia Double Stepping
+                        pos[2] = (pos[2]+1)%26;
+                        if(stepM) pos[1] = (pos[1]+1)%26;
+                        if(stepL) pos[0] = (pos[0]+1)%26;
+
+                        for(int i=2; i>=0; i--) { // Forward
+                            int shift = (pos[i] - ring[i] + 26) % 26;
+                            v = (W[rot[i]][(v + shift) % 26] - 'A' - shift + 26) % 26;
+                        }
+                        v = REF[v] - 'A'; // Riflettore
+                        for(int i=0; i<=2; i++) { // Backward
+                            int shift = (pos[i] - ring[i] + 26) % 26;
+                            v = (W[rot[i]].find((char)((v + shift) % 26 + 'A')) - shift + 26) % 26;
+                        }
+                        return (char)(pb[v] + 'A');
+                    }
+                };
+
+                int r1, r2, r3;
+                std::string p, r;
+                std::cout << " [?] Inserisci i Rotori (Sinistra, Centro, Destra) [es. 1 2 3]: ";
+                std::cin >> r1 >> r2 >> r3;
+                std::cout << " [?] Inserisci la Posizione Iniziale (3 lettere) [es. ABC]: ";
+                std::cin >> p;
+                std::cout << " [?] Inserisci il Ringstellung (3 lettere) [es. AAA]: ";
+                std::cin >> r;
+
+                LocalEnigma m3(r1, r2, r3, p, r);
+                std::string output = "";
+                for(char c : cleanTarget) output += m3.process(c);
+
+                std::cout << "\n======================================================================" << std::endl;
+                std::cout << " [!] TRASMISSIONE ENIGMA ELABORATA" << std::endl;
+                std::cout << "======================================================================" << std::endl;
+                std::cout << " OUTPUT : " << output << "\n\n";
                 break;
             }
-            case 8: { 
-                std::cout << "\n[EXEC] Attivazione Bomba di Turing..." << std::endl;
-                TuringBombe bombe;
-                (void)bombe;
-                std::cout << "[STATO] Simulazione Known-Plaintext. Crib richiesto per ingaggio fisico." << std::endl;
+
+            case 8: { // MODULO TURING BOMBE (KPA MULTI-THREAD)
+                std::cout << "\n[EXEC] Inizializzazione Turing Bombe (Multi-Thread KPA)..." << std::endl;
+                
+                std::ifstream f("ciphertext.txt");
+                if (!f) { std::cout << "[ERR] File non trovato.\n"; break; }
+                std::string cleanTarget = ""; char ch;
+                while (f.get(ch)) { if (std::isalpha(ch)) cleanTarget += std::toupper(ch); }
+
+                std::cout << " [?] Inserisci il CRIB (Testo in chiaro noto da cercare): ";
+                std::string crib; std::cin >> crib;
+                for(char& c : crib) c = std::toupper(c);
+
+                std::cout << "[SYSTEM] Generazione dei " << (5*4*3 * 26*26*26) << " stati termodinamici in RAM..." << std::endl;
+                
+                struct LocalEnigma {
+                    int rot[3], pos[3], ring[3];
+                    const std::string W[5] = {"EKMFLGDQVZNTOWYHXUSPAIBRCJ", "AJDKSIRUXBLHWTMCQGZNPYFVOE", "BDFHJLCPRTXVZNYEIWGAKMUSQO", "ESOVPZJAYQUIRHXLNFTGKDCMWB", "VZBRGITYUPSDNHLXAWMJQOFECK"};
+                    const int notches[5] = {16, 4, 21, 9, 25};
+                    const std::string REF = "YRUHQSLDPXNGOKMIEBFZCWVJAT";
+
+                    LocalEnigma(int r1, int r2, int r3, int p1, int p2, int p3) {
+                        rot[0] = r1; rot[1] = r2; rot[2] = r3;
+                        pos[0] = p1; pos[1] = p2; pos[2] = p3;
+                        ring[0] = 0; ring[1] = 0; ring[2] = 0; // KPA base ignora gli anelli (AAA)
+                    }
+
+                    char process(char c) {
+                        int v = c - 'A';
+                        bool stepM = (pos[2] == notches[rot[2]]);
+                        bool stepL = (pos[1] == notches[rot[1]]);
+                        if(stepL) stepM = true;
+                        pos[2] = (pos[2]+1)%26;
+                        if(stepM) pos[1] = (pos[1]+1)%26;
+                        if(stepL) pos[0] = (pos[0]+1)%26;
+
+                        for(int i=2; i>=0; i--) {
+                            int shift = (pos[i] - ring[i] + 26) % 26;
+                            v = (W[rot[i]][(v + shift) % 26] - 'A' - shift + 26) % 26;
+                        }
+                        v = REF[v] - 'A';
+                        for(int i=0; i<=2; i++) {
+                            int shift = (pos[i] - ring[i] + 26) % 26;
+                            v = (W[rot[i]].find((char)((v + shift) % 26 + 'A')) - shift + 26) % 26;
+                        }
+                        return (char)(v + 'A');
+                    }
+                };
+
+                // Generazione combinazioni dei rotori P(5,3) = 60
+                std::vector<std::vector<int>> rotorPerms;
+                for(int i=0; i<5; i++)
+                    for(int j=0; j<5; j++)
+                        for(int k=0; k<5; k++)
+                            if(i!=j && i!=k && j!=k) rotorPerms.push_back({i, j, k});
+
+                std::atomic<bool> found(false);
+                std::atomic<int> processedStates(0);
+                int numThreads = std::thread::hardware_concurrency();
+                if(numThreads == 0) numThreads = 1;
+                std::vector<std::thread> workers;
+
+                auto start_time = std::chrono::high_resolution_clock::now();
+                int totalStates = rotorPerms.size() * 17576;
+
+                for (int t = 0; t < numThreads; ++t) {
+                    workers.emplace_back([&, t]() {
+                        for(size_t rIdx = t; rIdx < rotorPerms.size(); rIdx += numThreads) {
+                            if(found) break;
+                            auto rts = rotorPerms[rIdx];
+                            
+                            for(int p1=0; p1<26; p1++) {
+                                for(int p2=0; p2<26; p2++) {
+                                    for(int p3=0; p3<26; p3++) {
+                                        if(found) return;
+                                        processedStates++;
+                                        if(t==0 && processedStates % 50000 == 0) {
+                                            std::cout << "\r[*] Rotazioni elaborate... " << processedStates << "/" << totalStates << std::flush;
+                                        }
+
+                                        LocalEnigma m3(rts[0], rts[1], rts[2], p1, p2, p3);
+                                        std::string attempt = "";
+                                        for(char c : cleanTarget) attempt += m3.process(c);
+
+                                        if(attempt.find(crib) != std::string::npos) {
+                                            if(!found.exchange(true)) {
+                                                std::lock_guard<std::mutex> lock(coutMutex);
+                                                std::cout << "\n\n======================================================================" << std::endl;
+                                                std::cout << " [!] TURING BOMBE: COLLISIONE LOGICA CONFERMATA" << std::endl;
+                                                std::cout << "======================================================================" << std::endl;
+                                                std::cout << " ROTORI (L-M-R)  : " << rts[0]+1 << " " << rts[1]+1 << " " << rts[2]+1 << std::endl;
+                                                std::cout << " POSIZIONE (Grd) : " << (char)(p1+'A') << (char)(p2+'A') << (char)(p3+'A') << std::endl;
+                                                std::cout << " PAYLOAD ESTRATTO: " << attempt << std::endl;
+                                            }
+                                            return;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+                for (auto& w : workers) if (w.joinable()) w.join();
+
+                auto end_time = std::chrono::high_resolution_clock::now();
+                if(!found) std::cout << "\n\n[STATO] Esaurimento stati (" << processedStates << "). Crib non trovato." << std::endl;
+                std::cout << " [TEMPO] : " << std::chrono::duration<double>(end_time - start_time).count() << "s\n" << std::endl;
                 break;
             }
             case 9: { // MODULO AES-256 (MULTI-THREAD SMP + BIG DATA + HEX SANITIZATION)
@@ -715,34 +876,449 @@ int main() {
                 }
                 break;
             }
-            case 12: { 
-                std::cout << "\n[EXEC] Calcolo Reticolare LWE (Post-Quantum)..." << std::endl;
-                LWECipher lwe(12345, 256, 256, 3329);
-                try { std::cout << "Output: " << lwe.decrypt(rawTarget) << std::endl; } 
-                catch (...) { std::cout << "Crash LWE controllato." << std::endl; }
+            case 12: { // MODULO LWE (Post-Quantum)
+            std::cout << "\n[EXEC] Inizializzazione Modulo LWE Lattice (Post-Quantum Crypto)..." << std::endl;
+            std::cout << "[SYSTEM] Algoritmo di Regev attivato. Generazione del reticolo spaziale in corso..." << std::endl;
+            
+            std::cout << "\n SELEZIONA OPERAZIONE LWE:\n [1] Cifra un payload (Genera Vettori Rumorosi in Zq)\n [2] Decifra il target in ciphertext.txt\n > ";
+            int op; 
+            std::cin >> op; 
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+            try {
+                LWECipher lwe(42, 8, 16, 251); 
+                if (op == 1) {
+                    std::cout << " [?] Inserisci il testo in chiaro da proiettare nel reticolo: ";
+                    std::string pt; 
+                    std::getline(std::cin, pt);
+                    
+                    std::string cypher = lwe.encrypt(pt);
+                    std::cout << "\n======================================================================" << std::endl;
+                    std::cout << " [!] SINGOLARITA' QUANTISTICA: VETTORI LWE GENERATI CON SUCCESSO" << std::endl;
+                    std::cout << "======================================================================" << std::endl;
+                    std::cout << cypher << std::endl;
+                    std::cout << "\n(Usa 'echo \"<output>\" > ciphertext.txt' per testare l'inversione NP-Hard)" << std::endl;
+                    
+                } else if (op == 2) {
+                    std::cout << "[SYSTEM] Calcolo della distanza vettoriale (Learning With Errors) in corso...\n";
+                    std::string dec = lwe.decrypt(rawTarget);
+                    
+                    std::cout << "\n======================================================================" << std::endl;
+                    std::cout << " [!] VETTORE QUANTISTICO COLLASSATO" << std::endl;
+                    std::cout << "======================================================================" << std::endl;
+                    std::cout << " PAYLOAD ESTRATTO : " << dec << std::endl;
+                }
+            } catch(const std::exception& e) { 
+                std::cout << "[ERR] Disallineamento dimensionale nel reticolo: " << e.what() << "\n"; 
+            }
+            break;
+        }
+            case 13: { // MODULO SHA-256 (FILE HASHING FORENSE)
+            std::cout << "\n[EXEC] Inizializzazione Motore di Hashing SHA-256..." << std::endl;
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::string filename;
+            std::cout << " [?] Inserisci il file per estrarre l'impronta digitale (es. dump.raw) o INVIO per 'ciphertext.txt': ";
+            std::getline(std::cin, filename);
+            if(filename.empty()) filename = "ciphertext.txt";
+
+            std::ifstream file(filename, std::ios::binary);
+            if (!file) {
+                std::cout << "[ERR] Fallimento I/O: Impossibile accedere al tensore '" << filename << "'." << std::endl;
                 break;
             }
-            case 13: { 
-                std::cout << "\n[EXEC] Hashing SHA-256..." << std::endl;
-                SHA256 sha;
-                (void)sha; 
-                std::cout << "[STATO] Modulo hash allocato." << std::endl;
+
+            // KERNEL SHA-256 STANDALONE (Nessuna dipendenza esterna)
+            struct LocalSHA256 {
+                uint32_t state[8] = {
+                    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+                    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+                };
+                uint64_t bitlen = 0;
+                uint8_t data[64];
+                uint32_t datalen = 0;
+
+                // Funzioni logiche primarie
+                uint32_t rotr(uint32_t x, uint32_t n) { return (x >> n) | (x << (32 - n)); }
+                uint32_t choose(uint32_t e, uint32_t f, uint32_t g) { return (e & f) ^ (~e & g); }
+                uint32_t majority(uint32_t a, uint32_t b, uint32_t c) { return (a & (b | c)) | (b & c); }
+                uint32_t sig0(uint32_t x) { return rotr(x, 7) ^ rotr(x, 18) ^ (x >> 3); }
+                uint32_t sig1(uint32_t x) { return rotr(x, 17) ^ rotr(x, 19) ^ (x >> 10); }
+                uint32_t ep0(uint32_t x) { return rotr(x, 2) ^ rotr(x, 13) ^ rotr(x, 22); }
+                uint32_t ep1(uint32_t x) { return rotr(x, 6) ^ rotr(x, 11) ^ rotr(x, 25); }
+
+                // Funzione di Compressione (Il cuore dell'entropia)
+                void transform() {
+                    const uint32_t k[64] = {
+                        0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+                        0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+                        0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+                        0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+                        0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+                        0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+                        0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+                        0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+                    };
+                    uint32_t m[64];
+                    for (int i=0, j=0; i < 16; ++i, j += 4)
+                        m[i] = (data[j] << 24) | (data[j+1] << 16) | (data[j+2] << 8) | (data[j+3]);
+                    for (int i=16; i < 64; ++i)
+                        m[i] = sig1(m[i-2]) + m[i-7] + sig0(m[i-15]) + m[i-16];
+
+                    uint32_t a = state[0], b = state[1], c = state[2], d = state[3];
+                    uint32_t e = state[4], f = state[5], g = state[6], h = state[7];
+
+                    for (int i=0; i < 64; ++i) {
+                        uint32_t t1 = h + ep1(e) + choose(e,f,g) + k[i] + m[i];
+                        uint32_t t2 = ep0(a) + majority(a,b,c);
+                        h = g; g = f; f = e; e = d + t1;
+                        d = c; c = b; b = a; a = t1 + t2;
+                    }
+                    state[0] += a; state[1] += b; state[2] += c; state[3] += d;
+                    state[4] += e; state[5] += f; state[6] += g; state[7] += h;
+                }
+
+                // Iniettore sequenziale
+                void update(const uint8_t* p, size_t len) {
+                    for (size_t i = 0; i < len; ++i) {
+                        data[datalen] = p[i];
+                        datalen++;
+                        if (datalen == 64) {
+                            transform();
+                            bitlen += 512;
+                            datalen = 0;
+                        }
+                    }
+                }
+
+                // Imbottitura finale (Padding) e serializzazione
+                std::string finalize() {
+                    uint32_t i = datalen;
+                    if (datalen < 56) {
+                        data[i++] = 0x80;
+                        while (i < 56) data[i++] = 0x00;
+                    } else {
+                        data[i++] = 0x80;
+                        while (i < 64) data[i++] = 0x00;
+                        transform();
+                        memset(data, 0, 56);
+                    }
+                    bitlen += datalen * 8;
+                    data[63] = bitlen; data[62] = bitlen >> 8; data[61] = bitlen >> 16; data[60] = bitlen >> 24;
+                    data[59] = bitlen >> 32; data[58] = bitlen >> 40; data[57] = bitlen >> 48; data[56] = bitlen >> 56;
+                    transform();
+                    
+                    std::stringstream ss;
+                    for(int idx=0; idx<8; idx++) {
+                        ss << std::hex << std::setw(8) << std::setfill('0') << state[idx];
+                    }
+                    return ss.str();
+                }
+            };
+
+            LocalSHA256 sha;
+            char buffer[8192];
+            auto start_time = std::chrono::high_resolution_clock::now();
+            size_t totalBytes = 0;
+
+            std::cout << "[SYSTEM] Innesco pipeline I/O bufferizzata (Chunk size: 8192 bytes)..." << std::endl;
+            
+            // Assorbimento continuo del file a blocchi per prevenire Memory Leak
+            while (file.read(buffer, sizeof(buffer))) {
+                sha.update(reinterpret_cast<uint8_t*>(buffer), file.gcount());
+                totalBytes += file.gcount();
+            }
+            // Assorbimento del residuo finale
+            if (file.gcount() > 0) {
+                sha.update(reinterpret_cast<uint8_t*>(buffer), file.gcount());
+                totalBytes += file.gcount();
+            }
+
+            std::string hashStr = sha.finalize();
+            auto end_time = std::chrono::high_resolution_clock::now();
+
+            std::cout << "\n======================================================================" << std::endl;
+            std::cout << " [!] DIGEST SHA-256 GENERATO CON SUCCESSO" << std::endl;
+            std::cout << "======================================================================" << std::endl;
+            std::cout << " File Target    : " << filename << std::endl;
+            std::cout << " Massa Elaborata: " << totalBytes << " bytes" << std::endl;
+            std::cout << " SHA-256 HASH   : " << hashStr << std::endl;
+            std::cout << " [TEMPO]        : " << std::chrono::duration<double>(end_time - start_time).count() << "s\n" << std::endl;
+            
+            break;
+        }
+            case 14: { // MODULO PCAP/PCAPNG PARSER (NETWORK FORENSICS & CARVING)
+            std::cout << "\n[EXEC] Inizializzazione Network Forensics Parser (Compatibilita' PCAPNG)..." << std::endl;
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::string filename;
+            std::cout << " [?] Inserisci il nome del file di cattura (es. target.pcapng) o premi INVIO per default: ";
+            std::getline(std::cin, filename);
+            if(filename.empty()) filename = "target.pcapng";
+
+            std::ifstream file(filename, std::ios::binary);
+            if (!file) {
+                std::cout << "[ERR] Disallineamento filesystem: Impossibile aprire '" << filename << "'." << std::endl;
                 break;
             }
-            case 14: { 
-                std::cout << "\n[EXEC] Avvio PCAP Parser..." << std::endl;
-                PCAPParser pcap;
-                (void)pcap;
-                std::cout << "[STATO] Motore di estrazione traffico allocato." << std::endl;
+
+            // 1. SCANSIONE FORENSE DELL'INTESTAZIONE (MAGIC BYTES)
+            uint32_t magic = 0;
+            file.read(reinterpret_cast<char*>(&magic), 4);
+
+            bool isPcapng = false;
+            bool isPcap = false;
+            bool swapEndian = false;
+
+            if (magic == 0xa1b2c3d4 || magic == 0xa1b23c4d) { isPcap = true; swapEndian = false; }
+            else if (magic == 0xd4c3b2a1 || magic == 0x4d3cb2a1) { isPcap = true; swapEndian = true; }
+            else if (magic == 0x0A0D0D0A) { isPcapng = true; }
+
+            if (!isPcap && !isPcapng) {
+                std::cout << "[ERR] Magic Bytes Sconosciuti (0x" << std::hex << magic << std::dec 
+                          << "). Il tensore non e' un archivio PCAP/PCAPNG valido." << std::endl;
                 break;
             }
-            case 15: { 
-                std::cout << "\n[EXEC] Avvio File Carver..." << std::endl;
-                FileCarver carver;
-                (void)carver;
-                std::cout << "[STATO] Motore ricerca Magic Bytes allocato." << std::endl;
+
+            std::cout << "[SYSTEM] Risonanza strutturale confermata: Formato " 
+                      << (isPcapng ? "PCAP-Next Generation (PCAPNG)" : "Classic PCAP") << std::endl;
+            std::cout << "[SYSTEM] Innesco Deep Packet Inspection. Ricerca artefatti e payload in chiaro..." << std::endl;
+
+            int packetCount = 0;
+            std::vector<std::string> extractedPayloads;
+
+            auto swap32 = [](uint32_t val) {
+                return ((val << 24) & 0xFF000000) | ((val << 8) & 0x00FF0000) |
+                       ((val >> 8) & 0x0000FF00) | ((val >> 24) & 0x000000FF);
+            };
+
+            // 2. DISSEZIONE BINARIA DIFFERENZIALE
+            if (isPcap) {
+                file.seekg(24, std::ios::beg);
+                while (file) {
+                    uint32_t pcapHdr[4]; 
+                    file.read(reinterpret_cast<char*>(pcapHdr), 16);
+                    if (!file) break; // FIX: Controllo di stato dello stream
+                    
+                    uint32_t incl_len = swapEndian ? swap32(pcapHdr[2]) : pcapHdr[2];
+                    if (incl_len > 65535) { std::cout << "[WARN] Frammentazione anomala pacchetto. Salto." << std::endl; break; }
+
+                    std::vector<char> pktData(incl_len);
+                    file.read(pktData.data(), incl_len);
+                    if (!file) break;
+                    packetCount++;
+
+                    std::string currentStr = "";
+                    for (char c : pktData) {
+                        if (std::isprint(static_cast<unsigned char>(c)) || c == '\t') {
+                            currentStr += c;
+                        } else {
+                            if (currentStr.length() >= 8) extractedPayloads.push_back(currentStr);
+                            currentStr = "";
+                        }
+                    }
+                    if (currentStr.length() >= 8) extractedPayloads.push_back(currentStr);
+                }
+            } else if (isPcapng) {
+                file.seekg(0, std::ios::beg);
+                while (file) {
+                    uint32_t blockType = 0, blockTotLength = 0;
+                    
+                    // FIX: Lettura asincrona sicura e bypass del gcount
+                    file.read(reinterpret_cast<char*>(&blockType), 4);
+                    if (!file) break; 
+                    file.read(reinterpret_cast<char*>(&blockTotLength), 4);
+                    if (!file || blockTotLength < 12) break; 
+                    
+                    uint32_t bodyLen = blockTotLength - 12; 
+                    std::vector<char> blockBody(bodyLen);
+                    file.read(blockBody.data(), bodyLen);
+                    
+                    uint32_t trailingLen = 0;
+                    file.read(reinterpret_cast<char*>(&trailingLen), 4);
+
+                    if (blockType == 6) { // Enhanced Packet Block
+                        packetCount++;
+                        if (bodyLen >= 20) {
+                            uint32_t capLen = *reinterpret_cast<uint32_t*>(&blockBody[12]);
+                            uint32_t dataOffset = 20;
+                            
+                            // Validazione della lunghezza per evitare segmentation fault
+                            if (dataOffset + capLen <= bodyLen) {
+                                std::string currentStr = "";
+                                for (uint32_t i = 0; i < capLen; i++) {
+                                    char c = blockBody[dataOffset + i];
+                                    if (std::isprint(static_cast<unsigned char>(c)) || c == '\t') {
+                                        currentStr += c;
+                                    } else {
+                                        if (currentStr.length() >= 8) extractedPayloads.push_back(currentStr);
+                                        currentStr = "";
+                                    }
+                                }
+                                if (currentStr.length() >= 8) extractedPayloads.push_back(currentStr);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. REPORTISTICA TATTICA E DATA CARVING
+            std::cout << "\n======================================================================" << std::endl;
+            std::cout << " [!] PARSING DI RETE COMPLETATO" << std::endl;
+            std::cout << "======================================================================" << std::endl;
+            std::cout << " Volumetria Pacchetti : " << packetCount << std::endl;
+            std::cout << " Artefatti Isolati    : " << extractedPayloads.size() << std::endl;
+            
+            if (!extractedPayloads.empty()) {
+                std::cout << "\n[SYSTEM] Estrazione Frammenti ad Alta Entropia Semantica (Primi 15 rilevati):" << std::endl;
+                int limit = std::min(static_cast<int>(extractedPayloads.size()), 15);
+                for (int i = 0; i < limit; i++) {
+                    std::cout << "  -> " << extractedPayloads[i] << std::endl;
+                }
+            } else {
+                std::cout << "[STATO] Nessun payload in chiaro rilevato. Il traffico risulta crittografato (es. TLS/HTTPS)." << std::endl;
+            }
+            break;
+        }
+            case 15: { // MODULO FILE CARVER (ESTRAZIONE MAGIC BYTES)
+            std::cout << "\n[EXEC] Inizializzazione File Carver Forense (Ricerca Firme Esadecimali)..." << std::endl;
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::string filename;
+            std::cout << " [?] Inserisci il nome del file binario/dump da analizzare (es. dump.raw) o premi INVIO per 'ciphertext.txt': ";
+            std::getline(std::cin, filename);
+            if(filename.empty()) filename = "ciphertext.txt";
+
+            // Apertura in modalita' binaria posizionando il puntatore alla fine (ate) per calcolare la massa del file
+            std::ifstream file(filename, std::ios::binary | std::ios::ate);
+            if (!file) {
+                std::cout << "[ERR] Disallineamento filesystem: Impossibile aprire '" << filename << "'." << std::endl;
                 break;
             }
+
+            std::streamsize size = file.tellg();
+            file.seekg(0, std::ios::beg);
+            std::cout << "[SYSTEM] Allocazione buffer tensoriale per " << size << " bytes continui..." << std::endl;
+
+            std::vector<unsigned char> buffer(size);
+            if (file.read(reinterpret_cast<char*>(buffer.data()), size)) {
+                std::cout << "[STATO] Lettura RAW completata. Innesco scansione lineare profonda su matrice contigua..." << std::endl;
+            } else {
+                std::cout << "[ERR] Fallimento irreversibile di lettura RAW. Allocazione abortita." << std::endl;
+                break;
+            }
+
+            // 1. DEFINIZIONE DELLE FIRME GEOMETRICHE (MAGIC BYTES)
+            // Header e Footer per il protocollo JPEG (Joint Photographic Experts Group)
+            const std::vector<unsigned char> jpgHeader = {0xFF, 0xD8, 0xFF};
+            const std::vector<unsigned char> jpgFooter = {0xFF, 0xD9};
+            
+            // Header e Footer per il protocollo PNG (Portable Network Graphics) incluse le ridondanze IEND
+            const std::vector<unsigned char> pngHeader = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+            const std::vector<unsigned char> pngFooter = {0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82};
+
+            // Header e Footer per la struttura dati PDF (Portable Document Format)
+            const std::vector<unsigned char> pdfHeader = {0x25, 0x50, 0x44, 0x46, 0x2D}; // "%PDF-"
+            const std::vector<unsigned char> pdfFooter = {0x25, 0x25, 0x45, 0x4F, 0x46}; // "%%EOF"
+
+            int carvedCount = 0;
+            size_t i = 0;
+
+            // Funzione Lambda anonima per il confronto balistico delle sequenze in RAM
+            auto matchSequence = [&](size_t idx, const std::vector<unsigned char>& seq) {
+                if (idx + seq.size() > buffer.size()) return false;
+                for (size_t j = 0; j < seq.size(); ++j) {
+                    if (buffer[idx + j] != seq[j]) return false;
+                }
+                return true;
+            };
+
+            // 2. DISSEZIONE VETTORIALE E DATA CARVING
+            while (i < buffer.size()) {
+                
+                // [A] Intercettazione Anomalia Strutturale: JPEG
+                if (matchSequence(i, jpgHeader)) {
+                    std::cout << " [*] Trovata anomalia (Header JPEG) all'offset vettoriale: 0x" << std::hex << i << std::dec << std::endl;
+                    
+                    size_t endIdx = i + 2; // Avanza oltre il primo FF D8
+                    int depth = 1;         // Inizializza il bilanciamento tensoriale
+                    
+                    while (endIdx < buffer.size() - 1 && depth > 0) {
+                        if (buffer[endIdx] == 0xFF && buffer[endIdx+1] == 0xD8) {
+                            depth++; // Trovato un sub-header (es. EXIF Thumbnail)
+                            endIdx += 2;
+                        } else if (buffer[endIdx] == 0xFF && buffer[endIdx+1] == 0xD9) {
+                            depth--; // Trovato un sub-footer
+                            if (depth == 0) break; // Singolarità raggiunta: vero End-Of-Image
+                            endIdx += 2;
+                        } else {
+                            endIdx++;
+                        }
+                    }
+                    
+                    if (depth == 0 && endIdx < buffer.size() - 1) {
+                        endIdx += 2; // Includi i due byte finali FF D9
+                        std::string outName = "carved_artifact_" + std::to_string(++carvedCount) + ".jpg";
+                        std::ofstream out(outName, std::ios::binary);
+                        out.write(reinterpret_cast<char*>(&buffer[i]), endIdx - i);
+                        std::cout << "  -> File intatto isolato ed estratto: " << outName << " (Massa: " << (endIdx - i) << " bytes)" << std::endl;
+                        i = endIdx; continue; // Salta il segmento già processato
+                    } else {
+                        std::cout << "  -> [WARN] Footer JPEG mancante o sbilanciato (File troncato). Estrazione saltata." << std::endl;
+                    }
+                }
+                
+                // [B] Intercettazione Anomalia Strutturale: PNG
+                else if (matchSequence(i, pngHeader)) {
+                    std::cout << " [*] Trovata anomalia (Header PNG) all'offset vettoriale: 0x" << std::hex << i << std::dec << std::endl;
+                    size_t endIdx = i + pngHeader.size();
+                    while (endIdx < buffer.size() && !matchSequence(endIdx, pngFooter)) endIdx++;
+                    
+                    if (endIdx < buffer.size()) {
+                        endIdx += pngFooter.size();
+                        std::string outName = "carved_artifact_" + std::to_string(++carvedCount) + ".png";
+                        std::ofstream out(outName, std::ios::binary);
+                        out.write(reinterpret_cast<char*>(&buffer[i]), endIdx - i);
+                        std::cout << "  -> File intatto isolato ed estratto: " << outName << " (Massa: " << (endIdx - i) << " bytes)" << std::endl;
+                        i = endIdx; continue;
+                    } else {
+                        std::cout << "  -> [WARN] Footer PNG mancante (File troncato a fine dump). Estrazione saltata." << std::endl;
+                    }
+                }
+                
+                // [C] Intercettazione Anomalia Strutturale: PDF
+                else if (matchSequence(i, pdfHeader)) {
+                    std::cout << " [*] Trovata anomalia (Header PDF) all'offset vettoriale: 0x" << std::hex << i << std::dec << std::endl;
+                    size_t endIdx = i + pdfHeader.size();
+                    while (endIdx < buffer.size() && !matchSequence(endIdx, pdfFooter)) endIdx++;
+                    
+                    if (endIdx < buffer.size()) {
+                        endIdx += pdfFooter.size(); 
+                        // Assorbimento di eventuali newline terminali ereditati dall'EOF
+                        while(endIdx < buffer.size() && (buffer[endIdx] == '\n' || buffer[endIdx] == '\r')) endIdx++;
+                        
+                        std::string outName = "carved_artifact_" + std::to_string(++carvedCount) + ".pdf";
+                        std::ofstream out(outName, std::ios::binary);
+                        out.write(reinterpret_cast<char*>(&buffer[i]), endIdx - i);
+                        std::cout << "  -> Documento intatto isolato ed estratto: " << outName << " (Massa: " << (endIdx - i) << " bytes)" << std::endl;
+                        i = endIdx; continue;
+                    } else {
+                        std::cout << "  -> [WARN] Footer PDF mancante (Documento troncato a fine dump). Estrazione saltata." << std::endl;
+                    }
+                }
+                i++; // Avanzamento brutale byte per byte se nessuna firma corrisponde
+            }
+
+            // 3. REPORTISTICA FORENSE TERMINALE
+            std::cout << "\n======================================================================" << std::endl;
+            std::cout << " [!] OPERAZIONE DI ESTRAZIONE MAGIC BYTES COMPLETATA" << std::endl;
+            std::cout << "======================================================================" << std::endl;
+            std::cout << " Bytes Analizzati   : " << buffer.size() << std::endl;
+            std::cout << " File Estratti (RAW): " << carvedCount << std::endl;
+            if (carvedCount == 0) {
+                std::cout << "[STATO] Nessuna firma esadecimale (JPEG/PNG/PDF) rilevata all'interno del tensore." << std::endl;
+            } else {
+                std::cout << "[STATO] Gli artefatti sono stati materializzati fisicamente nella root directory." << std::endl;
+            }
+            break;
+        }
             default:
                 std::cout << "[ERR] Scelta non contemplata. Selezionare un indice da 0 a 15." << std::endl;
                 break;
