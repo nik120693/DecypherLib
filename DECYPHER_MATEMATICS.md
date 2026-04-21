@@ -75,4 +75,3 @@ Where $s$ is the secret vector (private key) and $e$ is a small random error vec
 In `LWECipher.cpp`, we no longer work with text strings or isolated large integers, but with matrix operations. We use `std::vector<std::vector<int>>` to represent the mathematical lattices. Error extraction (decapsulation) involves rounding the extracted bit based on algebraic submission: if the residue modulo $q$ is closer to $q/2$, the bit is 1, otherwise it is 0. This error tolerance mechanism was implemented with *bit-shifting* logic to ensure execution speed at the L1 cache level.
 
 ---
-```
