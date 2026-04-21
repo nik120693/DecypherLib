@@ -1,16 +1,3 @@
----
-
-### 2. The `DECYPHER_MATHEMATICS.md` File (The Architectural Treatise)
-
-Create this file. It is the mathematical and computational explanation, brought to the maximum required level of verbosity, linking real-world equations to their C++ implementation.
-
-```markdown
-# THE MATHEMATICS OF DECYPHERLIB: A Deep Dive
-
-This document dissects the mathematical infrastructure and engineering decisions underlying the `DecypherLib` suite. Each algorithm is the reflection of a cryptographic or probabilistic equation, translated into C++17 to maximize CPU efficiency, parallelize computation, and prevent arithmetic overflow.
-
----
-
 ## 1. The Semantic Engine: Viterbi and Markov Chains
 The heart of our cryptanalysis is not simple decoding, but the machine's ability to "understand" if a deciphered string makes sense in human language. This problem was solved by modeling the English language as a Hidden Markov Model (HMM) solved via the **Viterbi Algorithm**.
 
