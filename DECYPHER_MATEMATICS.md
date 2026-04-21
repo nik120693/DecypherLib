@@ -2,8 +2,6 @@
 
 ### 2. The `DECYPHER_MATHEMATICS.md` File (The Architectural Treatise)
 
-Create this file. It is the mathematical and computational explanation, brought to the maximum required level of verbosity, linking real-world equations to their C++ implementation.
-
 ```markdown
 # THE MATHEMATICS OF DECYPHERLIB: A Deep Dive
 
